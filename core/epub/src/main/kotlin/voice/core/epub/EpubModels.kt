@@ -1,8 +1,6 @@
 package voice.core.epub
 
-data class ParsedBook(
-  val chapters: List<ParsedChapter>,
-)
+data class ParsedBook(val chapters: List<ParsedChapter>)
 
 data class ParsedChapter(
   val title: String,

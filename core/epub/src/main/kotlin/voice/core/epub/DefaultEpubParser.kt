@@ -47,7 +47,10 @@ class DefaultEpubParser : EpubParser {
     return EpubParseResult.Success(ParsedBook(chapters))
   }
 
-  private fun parseChapter(html: String, fallbackTitle: String): ParsedChapter {
+  private fun parseChapter(
+    html: String,
+    fallbackTitle: String,
+  ): ParsedChapter {
     val document = Jsoup.parse(html)
     val title = document.title().ifBlank { fallbackTitle }
     val sentences = splitSentences(document.body().text())

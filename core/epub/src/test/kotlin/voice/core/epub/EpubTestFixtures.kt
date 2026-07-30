@@ -15,7 +15,10 @@ internal fun buildTestEpub(
   encrypted: Boolean = false,
 ): File {
   ZipOutputStream(file.outputStream()).use { zip ->
-    fun writeEntry(name: String, content: String) {
+    fun writeEntry(
+      name: String,
+      content: String,
+    ) {
       zip.putNextEntry(ZipEntry(name))
       zip.write(content.toByteArray())
       zip.closeEntry()
