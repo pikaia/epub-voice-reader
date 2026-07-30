@@ -121,4 +121,54 @@ class DefaultEpubParserTest {
 
     assertEquals(expected = true, actual = result is EpubParseResult.Malformed)
   }
+
+  @Test
+  fun `reports a malformed result when container_xml declares an external entity`() {
+    val file = File(tempDir(), "xxe.epub")
+    java.util.zip.ZipOutputStream(file.outputStream()).use { zip ->
+      zip.putNextEntry(java.util.zip.ZipEntry("mimetype"))
+      zip.write("application/epub+zip".toByteArray())
+      zip.closeEntry()
+
+      zip.putNextEntry(java.util.zip.ZipEntry("META-INF/container.xml"))
+      zip.write(
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE container [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles>
+            <rootfile full-path="&xxe;" media-type="application/oebps-package+xml"/>
+          </rootfiles>
+        </container>
+        """.trimIndent().toByteArray(),
+      )
+      zip.closeEntry()
+    }
+
+    val result = parser.parse(file)
+
+    assertEquals(expected = true, actual = result is EpubParseResult.Malformed)
+  }
+
+  @Test
+  fun `reports a malformed result when a zip entry exceeds the size cap`() {
+    val file = File(tempDir(), "bomb.epub")
+    java.util.zip.ZipOutputStream(file.outputStream()).use { zip ->
+      zip.putNextEntry(java.util.zip.ZipEntry("mimetype"))
+      zip.write("application/epub+zip".toByteArray())
+      zip.closeEntry()
+
+      zip.putNextEntry(java.util.zip.ZipEntry("META-INF/container.xml"))
+      val oversized = "a".repeat(21 * 1024 * 1024)
+      zip.write(oversized.toByteArray())
+      zip.closeEntry()
+    }
+
+    val result = parser.parse(file)
+
+    assertEquals(
+      expected = EpubParseResult.Malformed("missing META-INF/container.xml"),
+      actual = result,
+    )
+  }
 }

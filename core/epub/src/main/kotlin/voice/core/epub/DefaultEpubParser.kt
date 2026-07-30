@@ -1,6 +1,7 @@
 package voice.core.epub
 
-import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesBinding
 import org.jsoup.Jsoup
 import org.w3c.dom.Document
 import org.w3c.dom.Element
@@ -12,7 +13,10 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 private val SENTENCE_LOCALE: Locale = Locale.US
 
-@Inject
+// 20 MB per entry (a single EPUB chapter or OPF/container file)
+private const val MAX_ENTRY_SIZE_BYTES = 20 * 1024 * 1024L
+
+@ContributesBinding(AppScope::class)
 class DefaultEpubParser : EpubParser {
 
   override fun parse(file: File): EpubParseResult {
@@ -110,11 +114,17 @@ class DefaultEpubParser : EpubParser {
   private fun parseXml(xml: String): Document? {
     val factory = DocumentBuilderFactory.newInstance()
     factory.isNamespaceAware = true
+    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+    factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+    factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+    factory.isXIncludeAware = false
+    factory.isExpandEntityReferences = false
     return factory.newDocumentBuilder().parse(xml.byteInputStream())
   }
 
   private fun ZipFile.readEntryOrNull(path: String): String? {
     val entry = getEntry(path) ?: return null
+    if (entry.size < 0 || entry.size > MAX_ENTRY_SIZE_BYTES) return null
     return getInputStream(entry).bufferedReader().use { it.readText() }
   }
 }
