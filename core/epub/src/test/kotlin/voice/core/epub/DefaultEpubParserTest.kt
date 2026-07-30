@@ -81,4 +81,44 @@ class DefaultEpubParserTest {
 
     assertEquals(expected = "Chapter 1", actual = result.book.chapters.single().title)
   }
+
+  @Test
+  fun `reports DRM-protected books instead of parsing them`() {
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+      encrypted = true,
+    )
+
+    val result = parser.parse(file)
+
+    assertEquals(expected = EpubParseResult.DrmProtected, actual = result)
+  }
+
+  @Test
+  fun `reports a malformed result when container_xml is missing`() {
+    val file = File(tempDir(), "broken.epub")
+    java.util.zip.ZipOutputStream(file.outputStream()).use { zip ->
+      zip.putNextEntry(java.util.zip.ZipEntry("mimetype"))
+      zip.write("application/epub+zip".toByteArray())
+      zip.closeEntry()
+    }
+
+    val result = parser.parse(file)
+
+    assertEquals(
+      expected = EpubParseResult.Malformed("missing META-INF/container.xml"),
+      actual = result,
+    )
+  }
+
+  @Test
+  fun `reports a malformed result for a file that is not a zip`() {
+    val file = File(tempDir(), "not-a-zip.epub")
+    file.writeBytes(byteArrayOf(1, 2, 3, 4))
+
+    val result = parser.parse(file)
+
+    assertEquals(expected = true, actual = result is EpubParseResult.Malformed)
+  }
 }
