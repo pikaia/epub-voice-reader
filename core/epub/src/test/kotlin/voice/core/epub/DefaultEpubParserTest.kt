@@ -69,4 +69,16 @@ class DefaultEpubParserTest {
       actual = result.book.chapters.map { it.title },
     )
   }
+
+  @Test
+  fun `falls back to a generated title when the chapter has none`() {
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = null, bodyHtml = "<p>No title here.</p>")),
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = "Chapter 1", actual = result.book.chapters.single().title)
+  }
 }
