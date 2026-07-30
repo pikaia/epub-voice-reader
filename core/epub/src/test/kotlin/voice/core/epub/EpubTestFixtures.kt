@@ -40,10 +40,10 @@ internal fun buildTestEpub(
       )
     }
 
-    val manifestItems = chapters.indices.joinToString("\n") { index ->
+    val manifestItems = chapters.indices.joinToString("\n          ") { index ->
       """<item id="chapter$index" href="chapter$index.xhtml" media-type="application/xhtml+xml"/>"""
     }
-    val spineItems = chapters.indices.joinToString("\n") { index ->
+    val spineItems = chapters.indices.joinToString("\n          ") { index ->
       """<itemref idref="chapter$index"/>"""
     }
     writeEntry(

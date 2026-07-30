@@ -31,4 +31,42 @@ class DefaultEpubParserTest {
       actual = result,
     )
   }
+
+  @Test
+  fun `splits chapter body into multiple sentences`() {
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(
+        TestEpubChapter(
+          title = "Intro",
+          bodyHtml = "<p>Hello there. This is chapter one. Great stuff.</p>",
+        ),
+      ),
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(
+      expected = listOf("Hello there.", "This is chapter one.", "Great stuff."),
+      actual = result.book.chapters.single().sentences,
+    )
+  }
+
+  @Test
+  fun `returns chapters in spine order`() {
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(
+        TestEpubChapter(title = "One", bodyHtml = "<p>First chapter text.</p>"),
+        TestEpubChapter(title = "Two", bodyHtml = "<p>Second chapter text.</p>"),
+      ),
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(
+      expected = listOf("One", "Two"),
+      actual = result.book.chapters.map { it.title },
+    )
+  }
 }
