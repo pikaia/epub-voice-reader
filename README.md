@@ -1,5 +1,7 @@
 # Voice
 
+[![Built with Claude Code](https://img.shields.io/badge/core%3Aepub_module-Built_with_Claude_Code-D97757)](https://claude.com/claude-code)
+
 [![CI](https://github.com/PaulWoitaschek/Voice/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PaulWoitaschek/Voice/actions/workflows/ci.yml)
 [![Translation status](https://hosted.weblate.org/widgets/voice/-/svg-badge.svg)](https://hosted.weblate.org/engage/voice/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://voice.woitaschek.de/license/)
