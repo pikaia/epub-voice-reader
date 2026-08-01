@@ -28,6 +28,9 @@ public data class BookContent(
   val narrator: String?,
   val series: String?,
   val part: String?,
+  @ColumnInfo(defaultValue = "'Audio'")
+  val sourceType: BookSourceType = BookSourceType.Audio,
+  val voiceId: String? = null,
 ) {
 
   @Ignore

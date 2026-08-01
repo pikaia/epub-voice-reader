@@ -116,6 +116,32 @@ class DataBaseMigratorTest {
   }
 
   @Test
+  fun migrate60() {
+    val dbName = "testDb"
+    val db = helper.createDatabase(dbName, 59)
+    db.execSQL(
+      "INSERT INTO `content2`(`id`,`playbackSpeed`,`skipSilence`,`isActive`,`lastPlayedAt`,`author`,`name`," +
+        "`addedAt`,`chapters`,`currentChapter`,`positionInChapter`,`cover`,`gain`,`genre`,`narrator`,`series`,`part`) " +
+        "VALUES ('book1', 1.0, 0, 1, '1970-01-01T00:00:00Z', NULL, 'A Book', '1970-01-01T00:00:00Z', '[]', " +
+        "'chapter1', 0, NULL, 0, NULL, NULL, NULL, NULL)",
+    )
+    db.close()
+
+    val migratedDb = helper.runMigrationsAndValidate(
+      dbName,
+      60,
+      true,
+      *allMigrations(),
+    )
+
+    val cursor = migratedDb.query("SELECT * FROM content2 WHERE id = 'book1'")
+    cursor.moveToFirst()
+    assertEquals(expected = "Audio", actual = cursor.getString("sourceType"))
+    assertEquals(expected = null, actual = cursor.getStringOrNull("voiceId"))
+    cursor.close()
+  }
+
+  @Test
   fun migrate43() {
     val dbName = "testDb"
     val db = helper.createDatabase(dbName, 43)
