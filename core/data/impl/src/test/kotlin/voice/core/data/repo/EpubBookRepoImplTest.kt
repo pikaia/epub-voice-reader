@@ -22,6 +22,7 @@ class EpubBookRepoImplTest {
   private val repo = EpubBookRepoImpl(
     chapterDao = db.epubChapterDao(),
     sentenceDao = db.epubSentenceDao(),
+    appDb = db,
   )
 
   @Test
