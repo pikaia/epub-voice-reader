@@ -1,0 +1,65 @@
+package voice.core.scanner
+
+import android.content.Context
+import dev.zacsweers.metro.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import voice.core.data.BookId
+import voice.core.data.EpubChapter
+import voice.core.data.EpubSentence
+import voice.core.data.repo.EpubBookRepo
+import voice.core.documentfile.CachedDocumentFile
+import voice.core.epub.EpubParseResult
+import voice.core.epub.EpubParser
+import voice.core.logging.api.Logger
+import java.io.File
+import java.util.UUID
+
+@Inject
+public class EpubImporter(
+  private val context: Context,
+  private val epubParser: EpubParser,
+  private val epubBookRepo: EpubBookRepo,
+) {
+
+  public suspend fun import(
+    bookId: BookId,
+    file: CachedDocumentFile,
+  ): EpubParseResult {
+    return withContext(Dispatchers.IO) {
+      val cacheFile = File(context.cacheDir, "epub-import-${UUID.randomUUID()}.epub")
+      try {
+        val input = context.contentResolver.openInputStream(file.uri)
+        if (input == null) {
+          Logger.w("Could not open input stream for $file")
+          return@withContext EpubParseResult.Malformed("could not open $file")
+        }
+        input.use { source ->
+          cacheFile.outputStream().use { output -> source.copyTo(output) }
+        }
+        val result = epubParser.parse(cacheFile)
+        if (result is EpubParseResult.Success) {
+          persist(bookId, result)
+        }
+        result
+      } finally {
+        cacheFile.delete()
+      }
+    }
+  }
+
+  private suspend fun persist(
+    bookId: BookId,
+    result: EpubParseResult.Success,
+  ) {
+    val chapters = result.book.chapters.mapIndexed { index, chapter ->
+      EpubChapter(bookId = bookId, index = index, title = chapter.title)
+    }
+    val sentences = result.book.chapters.flatMapIndexed { chapterIndex, chapter ->
+      chapter.sentences.mapIndexed { sentenceIndex, text ->
+        EpubSentence(bookId = bookId, chapterIndex = chapterIndex, index = sentenceIndex, text = text)
+      }
+    }
+    epubBookRepo.replaceChapters(bookId, chapters, sentences)
+  }
+}
