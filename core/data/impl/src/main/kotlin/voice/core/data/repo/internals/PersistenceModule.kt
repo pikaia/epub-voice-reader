@@ -11,6 +11,8 @@ import dev.zacsweers.metro.SingleIn
 import voice.core.data.repo.internals.dao.BookContentDao
 import voice.core.data.repo.internals.dao.BookmarkDao
 import voice.core.data.repo.internals.dao.ChapterDao
+import voice.core.data.repo.internals.dao.EpubChapterDao
+import voice.core.data.repo.internals.dao.EpubSentenceDao
 import voice.core.data.repo.internals.dao.RecentBookSearchDao
 
 @ContributesTo(AppScope::class)
@@ -24,6 +26,12 @@ public interface PersistenceModule {
 
   @Provides
   private fun bookmarkDao(appDb: AppDb): BookmarkDao = appDb.bookmarkDao()
+
+  @Provides
+  private fun epubChapterDao(appDb: AppDb): EpubChapterDao = appDb.epubChapterDao()
+
+  @Provides
+  private fun epubSentenceDao(appDb: AppDb): EpubSentenceDao = appDb.epubSentenceDao()
 
   @Provides
   private fun recentBookSearchDao(appDb: AppDb): RecentBookSearchDao = appDb.recentBookSearchDao()
