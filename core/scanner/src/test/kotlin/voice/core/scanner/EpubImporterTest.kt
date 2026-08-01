@@ -65,7 +65,10 @@ class EpubImporterTest {
 
   private fun buildMinimalEpub(file: File): File {
     ZipOutputStream(file.outputStream()).use { zip ->
-      fun entry(name: String, content: String) {
+      fun entry(
+        name: String,
+        content: String,
+      ) {
         zip.putNextEntry(ZipEntry(name))
         zip.write(content.toByteArray())
         zip.closeEntry()
