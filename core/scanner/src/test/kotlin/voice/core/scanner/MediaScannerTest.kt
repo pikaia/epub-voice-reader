@@ -169,6 +169,15 @@ class MediaScannerTest {
   }
 
   @Test
+  fun scanSingleEpubFile() = test {
+    val book = epubFile(parent = folder("books"), "test.epub")
+    scan(FolderType.SingleFile, book)
+    assertBookContents(
+      BookContentView(book, chapters = listOf(book)),
+    )
+  }
+
+  @Test
   fun scanAuthor() = test {
     val audioBooks = folder("audiobooks")
 
@@ -218,6 +227,10 @@ class MediaScannerTest {
         mediaAnalyzer = mediaAnalyzer,
         fileFactory = FileBasedDocumentFactory,
       ),
+      epubBookParser = EpubBookParser(
+        contentRepo = bookContentRepo,
+        chapterRepo = chapterRepo,
+      ),
       deviceHasPermissionBug = mockk(),
     )
 
@@ -259,6 +272,18 @@ class MediaScannerTest {
               part = "Part",
             )
           }
+        }
+    }
+
+    fun epubFile(
+      parent: File,
+      name: String,
+    ): File {
+      check(name.endsWith(".epub"))
+      return File(parent, name)
+        .also {
+          it.parentFile?.mkdirs()
+          check(it.createNewFile())
         }
     }
 

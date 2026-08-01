@@ -5,6 +5,7 @@ import voice.core.data.BookId
 import voice.core.data.audioFileCount
 import voice.core.data.folders.FolderType
 import voice.core.data.isAudioFile
+import voice.core.data.isEpubFile
 import voice.core.data.repo.BookContentRepo
 import voice.core.documentfile.CachedDocumentFile
 import voice.core.documentfile.walk
@@ -15,6 +16,7 @@ internal class MediaScanner(
   private val contentRepo: BookContentRepo,
   private val chapterParser: ChapterParser,
   private val bookParser: BookParser,
+  private val epubBookParser: EpubBookParser,
   private val deviceHasPermissionBug: DeviceHasStoragePermissionBug,
 ) {
 
@@ -70,6 +72,11 @@ internal class MediaScanner(
   }
 
   private suspend fun scan(file: CachedDocumentFile) {
+    if (file.isEpubFile()) {
+      epubBookParser.parseAndStore(file)
+      return
+    }
+
     val parseResult = chapterParser.parse(file)
     val chapters = parseResult.chapters
     if (chapters.isEmpty()) return

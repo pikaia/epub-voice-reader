@@ -19,6 +19,7 @@ internal class EpubBookParser(
   private val chapterRepo: ChapterRepo,
 ) {
 
+  @IgnorableReturnValue
   suspend fun parseAndStore(file: CachedDocumentFile): BookContent {
     val chapterId = ChapterId(file.uri)
     val name = file.nameWithoutExtension()
