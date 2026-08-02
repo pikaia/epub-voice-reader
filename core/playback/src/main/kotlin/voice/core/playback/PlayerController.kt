@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -192,6 +193,57 @@ class PlayerController(
   fun setVolume(volume: Float) = executeAfterPrepare {
     require(volume in 0F..1F)
     it.volume = volume
+  }
+
+  fun setEpubPlaylist(
+    mediaItems: List<MediaItem>,
+    startIndex: Int,
+    startPositionMs: Long,
+  ) {
+    scope.launch {
+      val controller = awaitConnect() ?: return@launch
+      controller.setMediaItems(mediaItems, startIndex, startPositionMs)
+      controller.prepare()
+      controller.play()
+    }
+  }
+
+  fun currentMediaItemIndexFlow(): Flow<Int> = callbackFlow {
+    val controller = awaitConnect()
+    if (controller == null) {
+      close()
+      return@callbackFlow
+    }
+
+    fun emitIndex() {
+      trySend(controller.currentMediaItemIndex)
+    }
+
+    val listener = object : Player.Listener {
+      override fun onMediaItemTransition(
+        mediaItem: MediaItem?,
+        reason: Int,
+      ) {
+        emitIndex()
+      }
+    }
+
+    controller.addListener(listener)
+    emitIndex()
+    awaitClose {
+      controller.removeListener(listener)
+    }
+  }
+
+  fun toggleEpubPlayPause() {
+    scope.launch {
+      val controller = awaitConnect() ?: return@launch
+      if (controller.isPlaying) {
+        controller.pause()
+      } else {
+        controller.play()
+      }
+    }
   }
 
   suspend fun livePlaybackState(bookId: BookId? = null): LivePlaybackState? {
