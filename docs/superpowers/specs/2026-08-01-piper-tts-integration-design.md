@@ -25,11 +25,17 @@ its concrete implementation.
   GPL-licensed; no new licensing concern since this fork already inherits Voice's GPLv3.
 - **Voice catalog: small curated list, hardcoded, English-only to start.** The voice manager's "available voices"
   list is a short hardcoded set (name, language, download URL, size, SHA-256 checksum — computed once when the list
-  entry is written, not inherited from Piper's own MD5-based `voices.json`) rather than dynamically fetching
-  Piper's full `voices.json` catalog (100+ voices, rhasspy/piper-voices on Hugging Face). Proves the
-  download/verify/cache/synthesize pipeline end-to-end without building a full catalog browser. Expanding to more
-  voices later is just adding list entries (or eventually fetching `voices.json` dynamically); both are cheap
-  follow-ups, not blockers, and fit naturally as Plan 5 polish.
+  entry is written) rather than dynamically fetching a full catalog. Proves the download/verify/cache/synthesize
+  pipeline end-to-end without building a full catalog browser. Expanding to more voices later is just adding list
+  entries; a cheap follow-up, not a blocker, and fits naturally as Plan 5 polish.
+- **Voice source: sherpa-onnx's pre-converted voice packages, not raw Piper files.** Raw Piper voice files from
+  Hugging Face (`rhasspy/piper-voices`, `.onnx` + `.onnx.json`) are not directly usable with sherpa-onnx's VITS
+  runtime — they need offline conversion (extracting a `tokens.txt` sherpa-onnx actually reads, from the `.onnx.json`).
+  sherpa-onnx publishes already-converted packages at
+  `github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-{voice}.tar.bz2` — each one a
+  self-contained archive with the `.onnx` model, `tokens.txt`, and its own `espeak-ng-data/` directory (confirmed by
+  downloading and inspecting `vits-piper-en_US-amy-low.tar.bz2`). The curated catalog's download URLs point here,
+  not at Hugging Face.
 - **Sentence-clip caching is in scope for Plan 3, not deferred.** Synthesized audio is persisted (not
   synthesize-and-discard) because: repeat playback (rewind/resume/replay) shouldn't re-run inference on text
   already narrated; the read-along sync mechanism depends on each sentence being a discrete, addressable clip
@@ -52,11 +58,14 @@ core module, depends on `core:data:api` for persistence, no Android-UI dependenc
 
 - **`SynthesisEngine`** (interface) / **`SherpaOnnxSynthesisEngine`** (impl) — `suspend fun synthesize(text: String,
   voice: InstalledVoice): SynthesisResult` where `SynthesisResult` is a sealed type (`Success(audio: ByteArray)` /
-  `Failure(reason: String)`), never throws. Wraps sherpa-onnx's `OfflineTts`, loading the voice's `.onnx`/`.onnx.json`
-  files. Pure inference — no I/O beyond reading the model files already on disk.
+  `Failure(reason: String)`), never throws. Wraps sherpa-onnx's `OfflineTts`, constructed from an
+  `OfflineTtsVitsModelConfig(model = voice.modelFile, tokens = voice.tokensFile, dataDir = voice.dataDir)`. Pure
+  inference — no I/O beyond reading the model files already on disk.
 - **`VoiceManager`** — `availableVoices(): List<VoiceCatalogEntry>` (hardcoded catalog merged with installed status),
-  `suspend fun install(voiceId: String): InstallResult`, `suspend fun uninstall(voiceId: String)`. Downloads to a
-  temp file, verifies checksum, moves into place, records an `InstalledVoice` row only on full success.
+  `suspend fun install(voiceId: String): InstallResult`, `suspend fun uninstall(voiceId: String)`. Downloads the
+  voice's `.tar.bz2` to a temp file, verifies its SHA-256 checksum, extracts it (tar + bzip2, via Apache Commons
+  Compress — not supported by Android's standard library) into `ttsVoices/{voiceId}/`, records an `InstalledVoice`
+  row pointing at the extracted `.onnx` model, `tokens.txt`, and `espeak-ng-data/` directory, only on full success.
 - **`SentenceClipCache`** — `suspend fun getOrSynthesize(bookId: BookId, voiceId: String, chapterIndex: Int, sentenceIndex: Int,
   text: String): ClipResult`. `(chapterIndex, sentenceIndex)` identifies the `EpubSentence` this clip is for — the
   same pair Plan 2's `EpubSentence` table is keyed on (`(bookId, chapterIndex, index)`), so a clip can always be
@@ -68,8 +77,9 @@ core module, depends on `core:data:api` for persistence, no Android-UI dependenc
 ### Data model (in `core:data`, extending `AppDb`)
 
 - **`InstalledVoice`** (`@Entity`, primary key `voiceId: String`): `name: String`, `language: String`,
-  `modelFile: File`, `configFile: File`, `installedAt: Instant`, `sizeBytes: Long`. Reuses the existing `File`
-  `TypeConverter` (already used by `BookContent.cover`).
+  `modelFile: File` (the `.onnx`), `tokensFile: File` (`tokens.txt`), `dataDir: File` (extracted `espeak-ng-data/`),
+  `installedAt: Instant`, `sizeBytes: Long`. Reuses the existing `File` `TypeConverter` (already used by
+  `BookContent.cover`).
 - **`SentenceClip`** (`@Entity`, primary key `(bookId, voiceId, chapterIndex, sentenceIndex)` — matching
   `EpubSentence`'s own key shape from Plan 2): `file: File`, `sizeBytes: Long`, `lastAccessedAt: Instant` (drives
   LRU eviction).
@@ -86,8 +96,9 @@ Following `CoverSaver`'s existing pattern (`File(context.filesDir, "bookCovers")
 **Voice management**
 1. `VoiceManager.availableVoices()` returns the hardcoded catalog cross-referenced against `VoiceRepo` for installed
    status.
-2. `VoiceManager.install(voiceId)` downloads the model+config pair to a temp file, verifies the checksum, moves both
-   into `ttsVoices/`, writes an `InstalledVoice` row. `uninstall(voiceId)` deletes the files and the row.
+2. `VoiceManager.install(voiceId)` downloads the voice's `.tar.bz2` to a temp file, verifies its SHA-256 checksum,
+   extracts it into `ttsVoices/{voiceId}/`, writes an `InstalledVoice` row pointing at the extracted model/tokens/data
+   paths. `uninstall(voiceId)` deletes `ttsVoices/{voiceId}/` and the row.
 
 **Synthesis**
 3. `SentenceClipCache.getOrSynthesize(bookId, voiceId, chapterIndex, sentenceIndex, text)`:
