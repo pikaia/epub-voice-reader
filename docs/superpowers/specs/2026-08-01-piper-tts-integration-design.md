@@ -15,14 +15,22 @@ its concrete implementation.
 
 ## Decisions
 
-- **Inference engine: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** (`com.k2fsa.sherpa.onnx:sherpa-onnx-android`,
-  Maven Central), not a hand-rolled ONNX Runtime + JNI + espeak-ng integration. sherpa-onnx ships prebuilt Android
-  AARs (native libs for all ABIs) wrapping ONNX Runtime, Piper-compatible inference, and bundled espeak-ng
-  phonemization, with a Kotlin API (`OfflineTts`, `OfflineTtsConfig`, `GeneratedAudio`). Building this ourselves
-  would mean cross-compiling C++ for 4 ABIs and writing JNI glue — a large undertaking for no benefit over an
-  actively maintained library, consistent with this codebase's existing pattern of using well-maintained
-  dependencies (e.g. jsoup for EPUB parsing) rather than building infrastructure from scratch. espeak-ng is
-  GPL-licensed; no new licensing concern since this fork already inherits Voice's GPLv3.
+- **Inference engine: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)**, not a hand-rolled ONNX Runtime + JNI +
+  espeak-ng integration. sherpa-onnx isn't on Maven Central; it's not published there at all (verified: a Maven
+  Central search for `sherpa-onnx` returns nothing under `com.k2fsa.*`). The real, official artifact is the AAR
+  attached to each GitHub release (e.g. `sherpa-onnx-1.13.4.aar`), built from their own `com.android.library`
+  module (`android/SherpaOnnxAar/sherpa_onnx`) — it bundles both the native `.so` libraries for all ABIs *and* the
+  Kotlin API source (`OfflineTts`, `OfflineTtsConfig`, `GeneratedAudio`, package `com.k2fsa.sherpa.onnx`) in one
+  package, so it's a complete, self-contained dependency once resolved. They also maintain a `jitpack.yml` in the
+  repo specifically to republish that release AAR via [JitPack](https://jitpack.io) — verified working directly:
+  `curl https://jitpack.io/com/github/k2-fsa/sherpa-onnx/1.13.4/sherpa-onnx-1.13.4.pom` resolves immediately (no
+  on-demand build wait). Add `maven(url = "https://jitpack.io")` to `settings.gradle.kts`'s
+  `dependencyResolutionManagement.repositories`, then depend on `com.github.k2-fsa:sherpa-onnx:1.13.4`.
+  Hand-rolling this integration ourselves would mean cross-compiling C++ for 4 ABIs and writing JNI glue — a large
+  undertaking for no benefit over an actively maintained library, consistent with this codebase's existing pattern
+  of using well-maintained dependencies (e.g. jsoup for EPUB parsing) rather than building infrastructure from
+  scratch. espeak-ng (bundled, used for phonemization) is GPL-licensed; no new licensing concern since this fork
+  already inherits Voice's GPLv3.
 - **Voice catalog: small curated list, hardcoded, English-only to start.** The voice manager's "available voices"
   list is a short hardcoded set (name, language, download URL, size, SHA-256 checksum — computed once when the list
   entry is written) rather than dynamically fetching a full catalog. Proves the download/verify/cache/synthesize
