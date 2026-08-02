@@ -65,10 +65,11 @@ New module: **`core:tts`**, following the existing `core:epub` → `core:scanner
 core module, depends on `core:data:api` for persistence, no Android-UI dependency).
 
 - **`SynthesisEngine`** (interface) / **`SherpaOnnxSynthesisEngine`** (impl) — `suspend fun synthesize(text: String,
-  voice: InstalledVoice): SynthesisResult` where `SynthesisResult` is a sealed type (`Success(audio: ByteArray)` /
-  `Failure(reason: String)`), never throws. Wraps sherpa-onnx's `OfflineTts`, constructed from an
-  `OfflineTtsVitsModelConfig(model = voice.modelFile, tokens = voice.tokensFile, dataDir = voice.dataDir)`. Pure
-  inference — no I/O beyond reading the model files already on disk.
+  voice: InstalledVoice, outputFile: File): SynthesisResult` where `SynthesisResult` is a sealed type
+  (`Success` / `Failure(reason: String)`), never throws. Writes directly to `outputFile` rather than returning
+  audio bytes, since sherpa-onnx's own `GeneratedAudio.save(filename)` already writes a WAV file directly — no
+  intermediate `ByteArray` round-trip needed. Wraps sherpa-onnx's `OfflineTts`, constructed from an
+  `OfflineTtsVitsModelConfig(model = voice.modelFile, tokens = voice.tokensFile, dataDir = voice.dataDir)`.
 - **`VoiceManager`** — `availableVoices(): List<VoiceCatalogEntry>` (hardcoded catalog merged with installed status),
   `suspend fun install(voiceId: String): InstallResult`, `suspend fun uninstall(voiceId: String)`. Downloads the
   voice's `.tar.bz2` to a temp file, verifies its SHA-256 checksum, extracts it (tar + bzip2, via Apache Commons
@@ -111,8 +112,8 @@ Following `CoverSaver`'s existing pattern (`File(context.filesDir, "bookCovers")
 **Synthesis**
 3. `SentenceClipCache.getOrSynthesize(bookId, voiceId, chapterIndex, sentenceIndex, text)`:
    - `SentenceClipRepo` lookup by `(bookId, voiceId, chapterIndex, sentenceIndex)` → hit: update `lastAccessedAt`, return the file.
-   - Miss: `SynthesisEngine.synthesize(text, installedVoice)` (voice's model loaded via `VoiceRepo`) → write WAV to
-     `ttsClips/` → insert `SentenceClip` row → return the file.
+   - Miss: `SynthesisEngine.synthesize(text, installedVoice, outputFile)` writes the WAV directly to `outputFile`
+     under `ttsClips/` → insert `SentenceClip` row → return the file.
 4. Before writing a new clip, if total cached size exceeds the configured cap (default **500 MB** — a plain
    in-code constant for this plan, not yet user-configurable; exposing it in Settings is Plan 5's job), delete
    least-recently-accessed `SentenceClip` rows/files until back under it.
