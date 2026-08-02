@@ -13,7 +13,9 @@ import voice.core.data.repo.internals.dao.BookmarkDao
 import voice.core.data.repo.internals.dao.ChapterDao
 import voice.core.data.repo.internals.dao.EpubChapterDao
 import voice.core.data.repo.internals.dao.EpubSentenceDao
+import voice.core.data.repo.internals.dao.InstalledVoiceDao
 import voice.core.data.repo.internals.dao.RecentBookSearchDao
+import voice.core.data.repo.internals.dao.SentenceClipDao
 
 @ContributesTo(AppScope::class)
 public interface PersistenceModule {
@@ -32,6 +34,12 @@ public interface PersistenceModule {
 
   @Provides
   private fun epubSentenceDao(appDb: AppDb): EpubSentenceDao = appDb.epubSentenceDao()
+
+  @Provides
+  private fun installedVoiceDao(appDb: AppDb): InstalledVoiceDao = appDb.installedVoiceDao()
+
+  @Provides
+  private fun sentenceClipDao(appDb: AppDb): SentenceClipDao = appDb.sentenceClipDao()
 
   @Provides
   private fun recentBookSearchDao(appDb: AppDb): RecentBookSearchDao = appDb.recentBookSearchDao()

@@ -9,14 +9,18 @@ import voice.core.data.Bookmark
 import voice.core.data.Chapter
 import voice.core.data.EpubChapter
 import voice.core.data.EpubSentence
+import voice.core.data.InstalledVoice
 import voice.core.data.RecentBookSearch
+import voice.core.data.SentenceClip
 import voice.core.data.repo.internals.dao.BookContentDao
 import voice.core.data.repo.internals.dao.BookSearchFts
 import voice.core.data.repo.internals.dao.BookmarkDao
 import voice.core.data.repo.internals.dao.ChapterDao
 import voice.core.data.repo.internals.dao.EpubChapterDao
 import voice.core.data.repo.internals.dao.EpubSentenceDao
+import voice.core.data.repo.internals.dao.InstalledVoiceDao
 import voice.core.data.repo.internals.dao.RecentBookSearchDao
+import voice.core.data.repo.internals.dao.SentenceClipDao
 import voice.core.data.repo.internals.migrations.Migration56
 
 @Database(
@@ -28,6 +32,8 @@ import voice.core.data.repo.internals.migrations.Migration56
     RecentBookSearch::class,
     EpubChapter::class,
     EpubSentence::class,
+    InstalledVoice::class,
+    SentenceClip::class,
   ],
   version = AppDb.VERSION,
   autoMigrations = [
@@ -40,6 +46,7 @@ import voice.core.data.repo.internals.migrations.Migration56
     AutoMigration(from = 58, to = 59),
     AutoMigration(from = 59, to = 60),
     AutoMigration(from = 60, to = 61),
+    AutoMigration(from = 61, to = 62),
   ],
 )
 @TypeConverters(Converters::class)
@@ -50,11 +57,13 @@ public abstract class AppDb : RoomDatabase() {
   public abstract fun bookmarkDao(): BookmarkDao
   public abstract fun epubChapterDao(): EpubChapterDao
   public abstract fun epubSentenceDao(): EpubSentenceDao
+  public abstract fun installedVoiceDao(): InstalledVoiceDao
+  public abstract fun sentenceClipDao(): SentenceClipDao
 
   public abstract fun recentBookSearchDao(): RecentBookSearchDao
 
   internal companion object {
-    const val VERSION = 61
+    const val VERSION = 62
     const val DATABASE_NAME = "autoBookDB"
   }
 }
