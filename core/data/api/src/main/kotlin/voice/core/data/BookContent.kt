@@ -31,6 +31,10 @@ public data class BookContent(
   @ColumnInfo(defaultValue = "'Audio'")
   val sourceType: BookSourceType = BookSourceType.Audio,
   val voiceId: String? = null,
+  @ColumnInfo(defaultValue = "0")
+  val currentEpubChapterIndex: Int = 0,
+  @ColumnInfo(defaultValue = "0")
+  val currentEpubSentenceIndex: Int = 0,
 ) {
 
   @Ignore
@@ -41,6 +45,9 @@ public data class BookContent(
   init {
     require(currentChapter in chapters && positionInChapter >= 0) {
       "invalid data in $this"
+    }
+    require(currentEpubChapterIndex >= 0 && currentEpubSentenceIndex >= 0) {
+      "invalid epub position in $this"
     }
   }
 }
