@@ -46,6 +46,7 @@ internal constructor(
     return withContext(Dispatchers.IO) {
       val downloaded = downloader.download(entry.downloadUrl)
         ?: return@withContext InstallResult.Failure("download failed")
+      val voiceDir = File(context.filesDir, "ttsVoices/$voiceId")
       try {
         val actualChecksum = sha256(downloaded)
         if (!actualChecksum.equals(entry.sha256, ignoreCase = true)) {
@@ -53,7 +54,6 @@ internal constructor(
           return@withContext InstallResult.Failure("checksum mismatch")
         }
 
-        val voiceDir = File(context.filesDir, "ttsVoices/$voiceId")
         voiceDir.deleteRecursively()
         voiceDir.mkdirs()
         extractTarBz2(downloaded, voiceDir)
@@ -79,6 +79,10 @@ internal constructor(
           ),
         )
         InstallResult.Success
+      } catch (e: Exception) {
+        Logger.w(e, "Failed to install voice=$voiceId")
+        voiceDir.deleteRecursively()
+        InstallResult.Failure("install error: ${e.message}")
       } finally {
         downloaded.delete()
       }

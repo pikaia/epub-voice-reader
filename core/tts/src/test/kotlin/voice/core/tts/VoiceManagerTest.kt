@@ -120,6 +120,22 @@ class VoiceManagerTest {
   }
 
   @Test
+  fun installFailsGracefullyWhenArchiveIsCorrupt() = runTest {
+    val corruptArchive = File(testFolder.newFolder(), "corrupt.tar.bz2")
+    corruptArchive.writeBytes(byteArrayOf(1, 2, 3, 4, 5))
+    val entry = catalogEntry(corruptArchive)
+    val manager = VoiceManager(context, downloader, voiceRepo, listOf(entry))
+    coEvery { downloader.download(entry.downloadUrl) } returns corruptArchive
+
+    val result = manager.install(entry.voiceId)
+
+    assertIs<InstallResult.Failure>(result)
+    assertNull(voiceRepo.installedVoice(entry.voiceId))
+    val voiceDir = File(context.filesDir, "ttsVoices/${entry.voiceId}")
+    assertEquals(expected = false, actual = voiceDir.exists())
+  }
+
+  @Test
   fun installFailsWhenDownloadFails() = runTest {
     val entry = catalogEntry(buildVoiceArchive())
     val manager = VoiceManager(context, downloader, voiceRepo, listOf(entry))
