@@ -163,6 +163,7 @@ dependencies {
   implementation(projects.core.epub)
   implementation(projects.core.playback)
   implementation(projects.core.scanner)
+  implementation(projects.core.tts)
   implementation(projects.core.featureflag)
   implementation(projects.core.initializer)
   implementation(projects.features.playbackScreen)
