@@ -15,6 +15,11 @@ sealed interface Destination {
   }
 
   @Serializable
+  data class EpubReader(val bookId: BookId) : Compose {
+    override val trackingName: String get() = "EpubReader"
+  }
+
+  @Serializable
   data class Bookmarks(val bookId: BookId) : Compose {
     override val trackingName: String get() = "Bookmarks"
   }

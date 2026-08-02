@@ -19,6 +19,7 @@ import kotlinx.coroutines.yield
 import voice.core.common.AppInfoProvider
 import voice.core.common.DispatcherProvider
 import voice.core.data.BookId
+import voice.core.data.BookSourceType
 import voice.core.data.GridMode
 import voice.core.data.KioskModeDemoData
 import voice.core.data.repo.BookContentRepo
@@ -279,6 +280,42 @@ class BookOverviewViewModelTest {
     }
   }
 
+  @Test
+  fun `onBookClick routes epub books to the epub reader`() = runTest {
+    val bookId = BookId("content://epub-book")
+    val navigator = mockk<Navigator>(relaxed = true)
+    val viewModel = viewModel(
+      navigator = navigator,
+      contentRepo = mockk {
+        coEvery { get(bookId) } returns mockk { every { sourceType } returns BookSourceType.Epub }
+      },
+      folderPickerInSettingsFeatureFlag = MemoryFeatureFlag(false),
+      folderPickerMovedDialogShownStore = MemoryDataStore(false),
+    )
+
+    viewModel.onBookClick(bookId)
+
+    verify { navigator.goTo(Destination.EpubReader(bookId)) }
+  }
+
+  @Test
+  fun `onBookClick routes audio books to the playback screen`() = runTest {
+    val bookId = BookId("content://audio-book")
+    val navigator = mockk<Navigator>(relaxed = true)
+    val viewModel = viewModel(
+      navigator = navigator,
+      contentRepo = mockk {
+        coEvery { get(bookId) } returns mockk { every { sourceType } returns BookSourceType.Audio }
+      },
+      folderPickerInSettingsFeatureFlag = MemoryFeatureFlag(false),
+      folderPickerMovedDialogShownStore = MemoryDataStore(false),
+    )
+
+    viewModel.onBookClick(bookId)
+
+    verify { navigator.goTo(Destination.Playback(bookId)) }
+  }
+
   private fun BookOverviewViewState.currentBook(bookId: BookId): BookOverviewItemViewState {
     return books.getValue(BookOverviewCategory.CURRENT).getValue(bookId).value
   }
@@ -288,6 +325,7 @@ class BookOverviewViewModelTest {
     folderPickerMovedDialogShownStore: DataStore<Boolean>,
     navigator: Navigator = mockk(),
     appInfoProvider: AppInfoProvider = appInfoProvider(),
+    contentRepo: BookContentRepo = mockk(),
   ): BookOverviewViewModel {
     return BookOverviewViewModel(
       repo = mockk<BookRepository> {
@@ -313,7 +351,7 @@ class BookOverviewViewModelTest {
       search = mockk<BookSearch> {
         coEvery { search(any()) } returns emptyList()
       },
-      contentRepo = mockk<BookContentRepo>(),
+      contentRepo = contentRepo,
       deviceHasStoragePermissionBug = mockk<DeviceHasStoragePermissionBug> {
         every { hasBug } returns MutableStateFlow(false)
       },

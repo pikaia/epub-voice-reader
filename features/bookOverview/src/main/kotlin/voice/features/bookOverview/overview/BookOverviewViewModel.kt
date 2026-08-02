@@ -25,6 +25,7 @@ import voice.core.common.MainScope
 import voice.core.common.comparator.sortedNaturally
 import voice.core.data.Book
 import voice.core.data.BookId
+import voice.core.data.BookSourceType
 import voice.core.data.GridMode
 import voice.core.data.KioskModeDemoData
 import voice.core.data.repo.BookContentRepo
@@ -252,7 +253,7 @@ class BookOverviewViewModel(
   }
 
   fun onBookClick(id: BookId) {
-    navigator.goTo(Destination.Playback(id))
+    navigateToBook(id)
   }
 
   fun onBookFolderClick() {
@@ -285,7 +286,18 @@ class BookOverviewViewModel(
       }
     }
     searchActive = false
-    navigator.goTo(Destination.Playback(id))
+    navigateToBook(id)
+  }
+
+  private fun navigateToBook(id: BookId) {
+    scope.launch {
+      val destination = if (contentRepo.get(id)?.sourceType == BookSourceType.Epub) {
+        Destination.EpubReader(id)
+      } else {
+        Destination.Playback(id)
+      }
+      navigator.goTo(destination)
+    }
   }
 
   fun playPause() {
