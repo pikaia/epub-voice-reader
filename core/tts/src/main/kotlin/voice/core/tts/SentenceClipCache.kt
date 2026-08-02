@@ -7,6 +7,7 @@ import voice.core.data.InstalledVoice
 import voice.core.data.SentenceClip
 import voice.core.data.repo.SentenceClipRepo
 import voice.core.data.repo.VoiceRepo
+import voice.core.logging.api.Logger
 import java.io.File
 import java.time.Instant
 import kotlin.uuid.Uuid
@@ -32,43 +33,51 @@ public class SentenceClipCache(
     sentenceIndex: Int,
     text: String,
   ): ClipResult {
-    val existing = sentenceClipRepo.get(bookId, voiceId, chapterIndex, sentenceIndex)
-    if (existing != null) {
-      sentenceClipRepo.touch(bookId, voiceId, chapterIndex, sentenceIndex, Instant.now())
-      return ClipResult.Success(existing.file)
-    }
-
-    val voice: InstalledVoice = voiceRepo.installedVoice(voiceId)
-      ?: return ClipResult.Failure("voice $voiceId is not installed")
-
-    val clipsDir = File(context.filesDir, "ttsClips").apply { mkdirs() }
-    val outputFile = File(clipsDir, "${Uuid.random()}.wav")
-
-    return when (val result = synthesisEngine.synthesize(text, voice, outputFile)) {
-      is SynthesisResult.Failure -> {
-        outputFile.delete()
-        ClipResult.Failure(result.reason)
+    var outputFile: File? = null
+    return try {
+      val existing = sentenceClipRepo.get(bookId, voiceId, chapterIndex, sentenceIndex)
+      if (existing != null) {
+        sentenceClipRepo.touch(bookId, voiceId, chapterIndex, sentenceIndex, Instant.now())
+        return ClipResult.Success(existing.file)
       }
-      SynthesisResult.Success -> {
-        val sizeBytes = outputFile.length()
-        if (!makeRoomFor(sizeBytes)) {
-          outputFile.delete()
-          ClipResult.Failure("not enough cache space for this clip")
-        } else {
-          sentenceClipRepo.upsert(
-            SentenceClip(
-              bookId = bookId,
-              voiceId = voiceId,
-              chapterIndex = chapterIndex,
-              sentenceIndex = sentenceIndex,
-              file = outputFile,
-              sizeBytes = sizeBytes,
-              lastAccessedAt = Instant.now(),
-            ),
-          )
-          ClipResult.Success(outputFile)
+
+      val voice: InstalledVoice = voiceRepo.installedVoice(voiceId)
+        ?: return ClipResult.Failure("voice $voiceId is not installed")
+
+      val clipsDir = File(context.filesDir, "ttsClips").apply { mkdirs() }
+      val file = File(clipsDir, "${Uuid.random()}.wav")
+      outputFile = file
+
+      when (val result = synthesisEngine.synthesize(text, voice, file)) {
+        is SynthesisResult.Failure -> {
+          file.delete()
+          ClipResult.Failure(result.reason)
+        }
+        SynthesisResult.Success -> {
+          val sizeBytes = file.length()
+          if (!makeRoomFor(sizeBytes)) {
+            file.delete()
+            ClipResult.Failure("not enough cache space for this clip")
+          } else {
+            sentenceClipRepo.upsert(
+              SentenceClip(
+                bookId = bookId,
+                voiceId = voiceId,
+                chapterIndex = chapterIndex,
+                sentenceIndex = sentenceIndex,
+                file = file,
+                sizeBytes = sizeBytes,
+                lastAccessedAt = Instant.now(),
+              ),
+            )
+            ClipResult.Success(file)
+          }
         }
       }
+    } catch (e: Exception) {
+      Logger.w(e, "Failed to get or synthesize clip for voice=$voiceId chapter=$chapterIndex sentence=$sentenceIndex")
+      outputFile?.delete()
+      ClipResult.Failure("cache error: ${e.message}")
     }
   }
 

@@ -1,13 +1,17 @@
 package voice.core.tts
 
 import android.content.Context
+import android.database.sqlite.SQLiteFullException
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.runner.RunWith
 import voice.core.data.BookId
 import voice.core.data.InstalledVoice
+import voice.core.data.repo.SentenceClipRepo
 import voice.core.data.repo.SentenceClipRepoImpl
 import voice.core.data.repo.VoiceRepoImpl
 import voice.core.data.repo.internals.AppDb
@@ -156,5 +160,34 @@ class SentenceClipCacheTest {
     )
 
     assertIs<ClipResult.Failure>(result)
+  }
+
+  @Test
+  fun returnsFailureAndDeletesTheOutputFileWhenARoomCallThrows() = runTest {
+    installVoice()
+    val throwingRepo = mockk<SentenceClipRepo>()
+    coEvery { throwingRepo.get(any(), any(), any(), any()) } returns null
+    coEvery { throwingRepo.totalSizeBytes() } throws SQLiteFullException("disk full")
+    val throwingCache = SentenceClipCache(
+      context = context,
+      synthesisEngine = synthesisEngine,
+      sentenceClipRepo = throwingRepo,
+      voiceRepo = voiceRepo,
+      maxCacheSizeBytes = 300L,
+    )
+    val clipsDir = File(context.filesDir, "ttsClips")
+
+    val result = throwingCache.getOrSynthesize(
+      bookId,
+      "en_US-amy-medium",
+      chapterIndex = 0,
+      sentenceIndex = 0,
+      text = "Hello.",
+    )
+
+    assertIs<ClipResult.Failure>(result)
+    // the clip was synthesized (writing a file into clipsDir) before totalSizeBytes() threw inside
+    // makeRoomFor; the catch block in getOrSynthesize must delete that orphaned file.
+    assertEquals(expected = emptyList(), actual = clipsDir.listFiles()?.toList().orEmpty())
   }
 }
