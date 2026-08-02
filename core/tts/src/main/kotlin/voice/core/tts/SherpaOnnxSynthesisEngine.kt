@@ -7,6 +7,7 @@ import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import voice.core.data.InstalledVoice
@@ -37,6 +38,8 @@ public class SherpaOnnxSynthesisEngine : SynthesisEngine {
             ),
           ),
         )
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         Logger.w(e, "Failed to load TTS model for voice=${voice.voiceId}")
         return@withContext SynthesisResult.Failure("failed to load model for voice=${voice.voiceId}: ${e.message}")
@@ -49,6 +52,8 @@ public class SherpaOnnxSynthesisEngine : SynthesisEngine {
         } else {
           SynthesisResult.Failure("failed to write WAV to $outputFile")
         }
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         Logger.w(e, "Synthesis failed for voice=${voice.voiceId}")
         SynthesisResult.Failure("synthesis error: ${e.message}")

@@ -2,6 +2,7 @@ package voice.core.tts
 
 import android.content.Context
 import dev.zacsweers.metro.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -79,9 +80,16 @@ internal constructor(
           ),
         )
         InstallResult.Success
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         Logger.w(e, "Failed to install voice=$voiceId")
         voiceDir.deleteRecursively()
+        try {
+          voiceRepo.delete(voiceId)
+        } catch (deleteError: Exception) {
+          Logger.w(deleteError, "Failed to clean up InstalledVoice row for voice=$voiceId after install failure")
+        }
         InstallResult.Failure("install error: ${e.message}")
       } finally {
         downloaded.delete()
@@ -112,11 +120,14 @@ internal constructor(
     destDir: File,
   ) {
     TarArchiveInputStream(BZip2CompressorInputStream(archive.inputStream())).use { tar ->
+      val destDirCanonicalPath = destDir.canonicalPath
       while (true) {
         val entry = tar.nextEntry ?: break
+        if (entry.isSymbolicLink) continue
         val relativePath = entry.name.substringAfter('/', missingDelimiterValue = "")
         if (relativePath.isEmpty()) continue
         val outFile = File(destDir, relativePath)
+        if (!outFile.canonicalPath.startsWith(destDirCanonicalPath + File.separator)) continue
         if (entry.isDirectory) {
           outFile.mkdirs()
         } else {

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.mockk.coEvery
 import io.mockk.mockk
+import io.mockk.spyk
 import kotlinx.coroutines.test.runTest
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -132,6 +133,31 @@ class VoiceManagerTest {
     assertIs<InstallResult.Failure>(result)
     assertNull(voiceRepo.installedVoice(entry.voiceId))
     val voiceDir = File(context.filesDir, "ttsVoices/${entry.voiceId}")
+    assertEquals(expected = false, actual = voiceDir.exists())
+  }
+
+  @Test
+  fun installFailsAndLeavesNoRowWhenUpsertThrows() = runTest {
+    val archive = buildVoiceArchive()
+    val entry = catalogEntry(archive)
+    val redownload = File(testFolder.newFolder(), "redownload.tar.bz2")
+    archive.copyTo(redownload)
+    val repo = spyk(voiceRepo)
+    val manager = VoiceManager(context, downloader, repo, listOf(entry))
+    coEvery { downloader.download(entry.downloadUrl) } returnsMany listOf(archive, redownload)
+
+    // Pre-install the voice successfully so a DB row + files already exist.
+    assertIs<InstallResult.Success>(manager.install(entry.voiceId))
+    val voiceDir = File(context.filesDir, "ttsVoices/${entry.voiceId}")
+    assertEquals(expected = true, actual = voiceDir.exists())
+
+    // Re-install the same voice, but this time upsert fails.
+    coEvery { repo.upsert(any()) } throws RuntimeException("boom")
+
+    val result = manager.install(entry.voiceId)
+
+    assertIs<InstallResult.Failure>(result)
+    assertNull(repo.installedVoice(entry.voiceId))
     assertEquals(expected = false, actual = voiceDir.exists())
   }
 

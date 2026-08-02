@@ -28,15 +28,21 @@ internal class TtsDownloader(
       Logger.w(e, "Failed to download voice from $url")
       return null
     }
+    if (!response.isSuccessful) {
+      Logger.w("Failed to download voice from $url: HTTP ${response.code}")
+      response.close()
+      return null
+    }
     return withContext(Dispatchers.IO) {
+      val file = File(tempFolder, "${Uuid.random()}.tar.bz2")
       try {
         response.body.source().use { source ->
-          val file = File(tempFolder, "${Uuid.random()}.tar.bz2")
           file.sink().use { sink -> source.readAll(sink) }
-          file
         }
+        file
       } catch (e: IOException) {
         Logger.w(e, "Failed to save voice download from $url")
+        file.delete()
         null
       }
     }

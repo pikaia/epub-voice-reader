@@ -36,7 +36,9 @@ dependencyResolutionManagement {
   repositories {
     google()
     mavenCentral()
-    maven(url = "https://jitpack.io")
+    maven(url = "https://jitpack.io") {
+      content { includeGroup("com.github.k2-fsa") }
+    }
   }
 }
 
