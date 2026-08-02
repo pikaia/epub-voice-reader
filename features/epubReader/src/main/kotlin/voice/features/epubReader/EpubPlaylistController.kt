@@ -1,0 +1,130 @@
+package voice.features.epubReader
+
+import androidx.media3.common.MediaItem
+import dev.zacsweers.metro.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import voice.core.common.DispatcherProvider
+import voice.core.common.MainScope
+import voice.core.data.BookId
+import voice.core.data.EpubSentence
+import voice.core.data.repo.EpubBookRepo
+import voice.core.logging.api.Logger
+import voice.core.tts.ClipResult
+import voice.core.tts.SentenceClipCache
+
+@Inject
+public class EpubPlaylistController(
+  private val epubBookRepo: EpubBookRepo,
+  private val sentenceClipCache: SentenceClipCache,
+  private val playbackControl: EpubPlaybackControl,
+  dispatcherProvider: DispatcherProvider,
+) {
+
+  private data class WindowEntry(
+    val chapterIndex: Int,
+    val sentenceIndex: Int,
+  )
+
+  private val scope = MainScope(dispatcherProvider)
+  private var indexCollectionJob: Job? = null
+
+  private var bookId: BookId? = null
+  private var voiceId: String? = null
+  private var window: List<WindowEntry> = emptyList()
+
+  private val currentSentence = MutableStateFlow<Pair<Int, Int>?>(null)
+
+  public fun currentSentenceFlow(): StateFlow<Pair<Int, Int>?> = currentSentence
+
+  public suspend fun start(
+    bookId: BookId,
+    voiceId: String,
+    chapterIndex: Int,
+    sentenceIndex: Int,
+  ) {
+    this.bookId = bookId
+    this.voiceId = voiceId
+    val (mediaItems, entries) = loadWindow(bookId, voiceId, chapterIndex, sentenceIndex)
+    window = entries
+    currentSentence.value = entries.firstOrNull()?.let { it.chapterIndex to it.sentenceIndex }
+    playbackControl.setPlaylist(mediaItems, startIndex = 0, startPositionMs = 0)
+    indexCollectionJob?.cancel()
+    indexCollectionJob = scope.launch {
+      playbackControl.currentMediaItemIndexFlow().collect { index ->
+        onCurrentMediaItemIndexChanged(index)
+      }
+    }
+  }
+
+  public fun togglePlayPause() {
+    playbackControl.togglePlayPause()
+  }
+
+  public suspend fun onCurrentMediaItemIndexChanged(index: Int) {
+    val entry = window.getOrNull(index) ?: return
+    currentSentence.value = entry.chapterIndex to entry.sentenceIndex
+    if (index >= window.size - RELOAD_MARGIN) {
+      reload(entry)
+    }
+  }
+
+  private suspend fun reload(from: WindowEntry) {
+    val bookId = bookId ?: return
+    val voiceId = voiceId ?: return
+    val next = nextPosition(from) ?: return
+    val (mediaItems, entries) = loadWindow(bookId, voiceId, next.chapterIndex, next.sentenceIndex)
+    if (entries.isEmpty()) return
+    window = entries
+    playbackControl.setPlaylist(mediaItems, startIndex = 0, startPositionMs = 0)
+  }
+
+  private fun nextPosition(entry: WindowEntry): WindowEntry? {
+    return WindowEntry(entry.chapterIndex, entry.sentenceIndex + 1)
+  }
+
+  private suspend fun loadWindow(
+    bookId: BookId,
+    voiceId: String,
+    startChapterIndex: Int,
+    startSentenceIndex: Int,
+  ): Pair<List<MediaItem>, List<WindowEntry>> {
+    val mediaItems = mutableListOf<MediaItem>()
+    val entries = mutableListOf<WindowEntry>()
+    var chapterIndex = startChapterIndex
+    var sentenceIndex = startSentenceIndex
+    var sentences = epubBookRepo.sentences(bookId, chapterIndex)
+
+    while (entries.size < WINDOW_SIZE) {
+      if (sentenceIndex >= sentences.size) {
+        chapterIndex += 1
+        sentenceIndex = 0
+        sentences = epubBookRepo.sentences(bookId, chapterIndex)
+        if (sentences.isEmpty()) break
+        continue
+      }
+      val sentence: EpubSentence = sentences[sentenceIndex]
+      when (val result = sentenceClipCache.getOrSynthesize(bookId, voiceId, chapterIndex, sentenceIndex, sentence.text)) {
+        is ClipResult.Success -> {
+          mediaItems += MediaItem.Builder()
+            .setUri(result.file.toURI().toString())
+            .build()
+          entries += WindowEntry(chapterIndex, sentenceIndex)
+        }
+        is ClipResult.Failure -> {
+          Logger.w("Skipping sentence chapter=$chapterIndex sentence=$sentenceIndex: ${result.reason}")
+        }
+      }
+      sentenceIndex += 1
+    }
+
+    return mediaItems to entries
+  }
+
+  private companion object {
+    const val WINDOW_SIZE = 30
+    const val RELOAD_MARGIN = 5
+  }
+}
