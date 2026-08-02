@@ -17,6 +17,8 @@ ktlint-gradlePlugin = "0.14.0"
 retrofit = "3.0.0"
 metro = "1.3.2"
 navigation3 = "1.1.4"
+sherpaOnnx = "1.13.4"
+commonsCompress = "1.28.0"
 androidx-lifecycle = "2.11.0"
 
 [libraries]
@@ -50,6 +52,8 @@ clikt = "com.github.ajalt.clikt:clikt:5.1.0"
 jebml = "org.jitsi:jebml:2.4.4-6-gb310849"
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 slf4j-noop = "org.slf4j:slf4j-nop:2.0.18"
+sherpaOnnx = { module = "com.github.k2-fsa:sherpa-onnx", version.ref = "sherpaOnnx" }
+commonsCompress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutines" }
