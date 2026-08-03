@@ -10,6 +10,7 @@ import java.text.BreakIterator
 import java.util.Locale
 import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.parsers.ParserConfigurationException
 
 private val SENTENCE_LOCALE: Locale = Locale.US
 
@@ -114,12 +115,34 @@ class DefaultEpubParser : EpubParser {
   private fun parseXml(xml: String): Document? {
     val factory = DocumentBuilderFactory.newInstance()
     factory.isNamespaceAware = true
-    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-    factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
-    factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-    factory.isXIncludeAware = false
-    factory.isExpandEntityReferences = false
+    factory.setFeatureIfSupported("http://apache.org/xml/features/disallow-doctype-decl", true)
+    factory.setFeatureIfSupported("http://xml.org/sax/features/external-general-entities", false)
+    factory.setFeatureIfSupported("http://xml.org/sax/features/external-parameter-entities", false)
+    factory.setPropertyIfSupported { isXIncludeAware = false }
+    factory.setPropertyIfSupported { isExpandEntityReferences = false }
     return factory.newDocumentBuilder().parse(xml.byteInputStream())
+  }
+
+  private inline fun DocumentBuilderFactory.setPropertyIfSupported(set: DocumentBuilderFactory.() -> Unit) {
+    try {
+      set()
+    } catch (e: UnsupportedOperationException) {
+      // Android's built-in DocumentBuilderFactory doesn't support configuring some of these
+      // properties at all (even to set them to their already-default value) — a no-op there.
+    }
+  }
+
+  private fun DocumentBuilderFactory.setFeatureIfSupported(
+    name: String,
+    value: Boolean,
+  ) {
+    try {
+      setFeature(name, value)
+    } catch (e: ParserConfigurationException) {
+      // Android's built-in XML parser doesn't recognize Xerces-specific hardening features
+      // (unlike the JVM's Xerces used in unit tests) — the other hardening calls in parseXml
+      // still apply on every platform regardless of this feature's support.
+    }
   }
 
   private fun ZipFile.readEntryOrNull(path: String): String? {

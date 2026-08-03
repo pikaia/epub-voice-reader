@@ -289,7 +289,15 @@ class VoicePlayer(
     startPositionMs: Long,
   ) {
     val first = mediaItems.firstOrNull() ?: return
-    setBook(first)
+    if (first.mediaId.toMediaIdOrNull() == null) {
+      // Items with no MediaId at all (e.g. EPUB sentence clips) aren't book-shaped and have
+      // nothing for setBook() to resolve — forward them to the real player as-is instead of
+      // silently dropping them, which previously left the player showing/playing whatever book
+      // was loaded before this call.
+      player.setMediaItems(mediaItems, startIndex, startPositionMs)
+    } else {
+      setBook(first)
+    }
   }
 
   private fun setBook(mediaItem: MediaItem) {
