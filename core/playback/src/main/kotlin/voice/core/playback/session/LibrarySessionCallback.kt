@@ -85,6 +85,14 @@ class LibrarySessionCallback(
       currentBookStoreId.updateData { searchResult.id }
       mediaItemProvider.mediaItemsWithStartPosition(searchResult)
     } else {
+      // A raw mediaId with no search query and an unset start position/index is the shape of a
+      // passive/system-initiated resumption request (e.g. a system UI surface reconnecting and
+      // replaying a cached mediaId), not a deliberate user action. If a non-book (e.g. EPUB)
+      // session is already loaded, honoring this would hijack it with unrelated — possibly
+      // stale — audiobook state (confirmed on-device: a long-since-broken book's mediaId kept
+      // getting replayed this way, each time overwriting currentBookStoreId too). Preserve the
+      // active session instead of resolving the request.
+      currentNonBookQueueOrNull()?.let { return it }
       (item.mediaId.toMediaIdOrNull() as? MediaId.Book)?.let { bookId ->
         currentBookStoreId.updateData { bookId.id }
       }
