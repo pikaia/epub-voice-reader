@@ -119,11 +119,29 @@ class PlayerController(
     controller.play()
   }
 
-  fun playPause() = executeAfterPrepare { controller ->
-    if (controller.isPlaying) {
-      controller.pause()
-    } else {
-      controller.play()
+  fun playPause() {
+    scope.launch {
+      val controller = awaitConnect() ?: return@launch
+      val currentItemIsBook = controller.currentMediaItem?.mediaId?.toMediaIdOrNull() != null
+      if (!currentItemIsBook && controller.mediaItemCount > 0) {
+        // A non-book session is already loaded (e.g. an active EPUB queue, whose items carry no
+        // MediaId) — toggle it directly. Falling through to maybePrepare() would try to resolve
+        // via the audiobook-only currentBookStoreId, which either does nothing (if it's unset)
+        // or replaces this queue with an unrelated book (if it's stale).
+        if (controller.isPlaying) {
+          controller.pause()
+        } else {
+          controller.play()
+        }
+        return@launch
+      }
+      if (maybePrepare(controller)) {
+        if (controller.isPlaying) {
+          controller.pause()
+        } else {
+          controller.play()
+        }
+      }
     }
   }
 
