@@ -200,11 +200,14 @@ class PlayerController(
     startIndex: Int,
     startPositionMs: Long,
   ) {
+    Logger.i("DEBUGTRACE setEpubPlaylist(size=${mediaItems.size}, startIndex=$startIndex) called, about to force play()")
     scope.launch {
       val controller = awaitConnect() ?: return@launch
+      Logger.i("DEBUGTRACE setEpubPlaylist: controller connected, isPlaying=${controller.isPlaying} before setMediaItems")
       controller.setMediaItems(mediaItems, startIndex, startPositionMs)
       controller.prepare()
       controller.play()
+      Logger.i("DEBUGTRACE setEpubPlaylist: play() called")
     }
   }
 
@@ -238,6 +241,7 @@ class PlayerController(
   fun toggleEpubPlayPause() {
     scope.launch {
       val controller = awaitConnect() ?: return@launch
+      Logger.i("DEBUGTRACE toggleEpubPlayPause: isPlaying=${controller.isPlaying}, about to ${if (controller.isPlaying) "pause" else "play"}")
       if (controller.isPlaying) {
         controller.pause()
       } else {

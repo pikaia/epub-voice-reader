@@ -48,6 +48,7 @@ public class EpubPlaylistController(
     chapterIndex: Int,
     sentenceIndex: Int,
   ) {
+    Logger.i("DEBUGTRACE EpubPlaylistController.start(chapterIndex=$chapterIndex, sentenceIndex=$sentenceIndex), instance=${System.identityHashCode(this)}")
     this.bookId = bookId
     this.voiceId = voiceId
     this.bookTitle = bookTitle
@@ -68,6 +69,7 @@ public class EpubPlaylistController(
   }
 
   public suspend fun onCurrentMediaItemIndexChanged(index: Int) {
+    Logger.i("DEBUGTRACE onCurrentMediaItemIndexChanged(index=$index), windowSize=${window.size}, instance=${System.identityHashCode(this)}")
     val entry = window.getOrNull(index) ?: return
     currentSentence.value = entry.chapterIndex to entry.sentenceIndex
     if (index >= window.size - RELOAD_MARGIN) {
@@ -76,6 +78,7 @@ public class EpubPlaylistController(
   }
 
   private suspend fun reload(from: WindowEntry) {
+    Logger.i("DEBUGTRACE EpubPlaylistController.reload(from=$from), instance=${System.identityHashCode(this)}")
     val bookId = bookId ?: return
     val voiceId = voiceId ?: return
     val bookTitle = bookTitle ?: return

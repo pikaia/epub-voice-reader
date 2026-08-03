@@ -13,6 +13,7 @@ import voice.core.common.MainScope
 import voice.core.data.BookId
 import voice.core.data.repo.BookRepository
 import voice.core.data.repo.EpubBookRepo
+import voice.core.logging.api.Logger
 import voice.core.playback.playstate.PlayStateManager
 
 @AssistedInject
@@ -45,6 +46,7 @@ public class EpubReaderViewModel(
   private var activeChapterIndex = 0
 
   init {
+    Logger.i("DEBUGTRACE EpubReaderViewModel.init for bookId=$bookId, instance=${System.identityHashCode(this)}")
     scope.launch {
       when (val result = epubBookOpener.open(bookId)) {
         is EpubBookOpener.OpenResult.Ready -> {

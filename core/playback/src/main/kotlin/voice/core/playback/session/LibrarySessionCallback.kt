@@ -65,7 +65,7 @@ class LibrarySessionCallback(
     startIndex: Int,
     startPositionMs: Long,
   ): ListenableFuture<MediaItemsWithStartPosition> {
-    Logger.d("onSetMediaItems(mediaItems.size=${mediaItems.size}, startIndex=$startIndex, startPosition=$startPositionMs)")
+    Logger.i("DEBUGTRACE onSetMediaItems(mediaItems.size=${mediaItems.size}, startIndex=$startIndex, startPosition=$startPositionMs)")
     val item = mediaItems.singleOrNull()
     return if (startIndex == C.INDEX_UNSET && startPositionMs == C.TIME_UNSET && item != null) {
       scope.future {
@@ -143,6 +143,10 @@ class LibrarySessionCallback(
     isForPlayback: Boolean,
   ): ListenableFuture<MediaItemsWithStartPosition> {
     Logger.d("onPlaybackResumption")
+    val activeNonBookQueue = currentNonBookQueueOrNull()
+    if (activeNonBookQueue != null) {
+      return Futures.immediateFuture(activeNonBookQueue)
+    }
     return scope.future {
       val currentBook = currentBook()
       if (currentBook != null) {
@@ -151,6 +155,13 @@ class LibrarySessionCallback(
         throw UnsupportedOperationException()
       }
     }
+  }
+
+  private fun currentNonBookQueueOrNull(): MediaItemsWithStartPosition? {
+    val currentItem = player.currentMediaItem ?: return null
+    if (currentItem.mediaId.toMediaIdOrNull() != null) return null
+    val items = (0 until player.mediaItemCount).map { player.getMediaItemAt(it) }
+    return MediaItemsWithStartPosition(items, player.currentMediaItemIndex, player.currentPosition)
   }
 
   private suspend fun currentBook(): Book? {
