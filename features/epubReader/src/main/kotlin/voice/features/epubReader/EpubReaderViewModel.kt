@@ -41,6 +41,7 @@ public class EpubReaderViewModel(
 
   private val openState = MutableStateFlow<OpenState>(OpenState.Loading)
   private var voiceId: String? = null
+  private var bookTitle: String? = null
   private var activeChapterIndex = 0
 
   init {
@@ -48,15 +49,21 @@ public class EpubReaderViewModel(
       when (val result = epubBookOpener.open(bookId)) {
         is EpubBookOpener.OpenResult.Ready -> {
           voiceId = result.voiceId
-          val bookTitle = bookRepository.get(bookId)?.content?.name.orEmpty()
+          val content = bookRepository.get(bookId)?.content
+          val resolvedBookTitle = content?.name.orEmpty()
+          bookTitle = resolvedBookTitle
+          val resumeChapterIndex = content?.currentEpubChapterIndex ?: 0
+          val resumeSentenceIndex = content?.currentEpubSentenceIndex ?: 0
+          activeChapterIndex = resumeChapterIndex
           val chapters = result.chapters.map { EpubReaderViewState.ChapterEntry(index = it.index, title = it.title) }
-          val sentences = epubBookRepo.sentences(bookId, chapterIndex = 0).map { it.text }
-          openState.value = OpenState.Ready(bookTitle, chapters, sentences)
+          val sentences = epubBookRepo.sentences(bookId, chapterIndex = resumeChapterIndex).map { it.text }
+          openState.value = OpenState.Ready(resolvedBookTitle, chapters, sentences)
           epubPlaylistController.start(
             bookId = bookId,
             voiceId = result.voiceId,
-            chapterIndex = 0,
-            sentenceIndex = 0,
+            bookTitle = resolvedBookTitle,
+            chapterIndex = resumeChapterIndex,
+            sentenceIndex = resumeSentenceIndex,
           )
         }
         is EpubBookOpener.OpenResult.Malformed -> {
@@ -92,10 +99,11 @@ public class EpubReaderViewModel(
 
   public fun onChapterSelect(chapterIndex: Int) {
     val voiceId = voiceId ?: return
+    val bookTitle = bookTitle ?: return
     activeChapterIndex = chapterIndex
     scope.launch {
       updateSentencesForChapter(chapterIndex)
-      epubPlaylistController.start(bookId, voiceId, chapterIndex, sentenceIndex = 0)
+      epubPlaylistController.start(bookId, voiceId, bookTitle, chapterIndex, sentenceIndex = 0)
     }
   }
 

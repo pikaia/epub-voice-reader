@@ -22,6 +22,7 @@ class EpubPlaylistControllerTest {
   private val scope = TestScope()
   private val bookId = BookId("content://book1")
   private val voiceId = "en_US-amy-medium"
+  private val bookTitle = "Test Book"
   private val epubBookRepo = FakeEpubBookRepo()
   private val failingSentences = mutableSetOf<Pair<Int, Int>>()
   private val sentenceClipCache = mockk<SentenceClipCache> {
@@ -52,7 +53,7 @@ class EpubPlaylistControllerTest {
   fun `start synthesizes the initial window and sets it as the playlist`() = scope.runTest {
     epubBookRepo.seed(chapterIndex = 0, sentenceCount = 5)
 
-    controller.start(bookId, voiceId, chapterIndex = 0, sentenceIndex = 0)
+    controller.start(bookId, voiceId, bookTitle, chapterIndex = 0, sentenceIndex = 0)
 
     assertEquals(expected = 5, actual = playbackControl.lastPlaylist?.size)
     assertEquals(expected = 0, actual = playbackControl.lastStartIndex)
@@ -61,7 +62,7 @@ class EpubPlaylistControllerTest {
   @Test
   fun `currentSentenceFlow maps the media item index back to chapter and sentence`() = scope.runTest {
     epubBookRepo.seed(chapterIndex = 0, sentenceCount = 5)
-    controller.start(bookId, voiceId, chapterIndex = 0, sentenceIndex = 0)
+    controller.start(bookId, voiceId, bookTitle, chapterIndex = 0, sentenceIndex = 0)
 
     playbackControl.currentIndex.value = 2
     runCurrent()
@@ -74,7 +75,7 @@ class EpubPlaylistControllerTest {
     epubBookRepo.seed(chapterIndex = 0, sentenceCount = 3)
     failingSentences += 0 to 1
 
-    controller.start(bookId, voiceId, chapterIndex = 0, sentenceIndex = 0)
+    controller.start(bookId, voiceId, bookTitle, chapterIndex = 0, sentenceIndex = 0)
 
     assertEquals(expected = 2, actual = playbackControl.lastPlaylist?.size)
   }
@@ -82,7 +83,7 @@ class EpubPlaylistControllerTest {
   @Test
   fun `reload is not triggered before reaching the window's reload margin`() = scope.runTest {
     epubBookRepo.seed(chapterIndex = 0, sentenceCount = 30)
-    controller.start(bookId, voiceId, chapterIndex = 0, sentenceIndex = 0)
+    controller.start(bookId, voiceId, bookTitle, chapterIndex = 0, sentenceIndex = 0)
     val setPlaylistCallsBefore = playbackControl.setPlaylistCallCount
 
     playbackControl.currentIndex.value = 10 // well before index 25 (window size 30 - reload margin 5)
@@ -95,7 +96,7 @@ class EpubPlaylistControllerTest {
   fun `reloads the window once playback nears its end`() = scope.runTest {
     epubBookRepo.seed(chapterIndex = 0, sentenceCount = 30)
     epubBookRepo.seed(chapterIndex = 1, sentenceCount = 10)
-    controller.start(bookId, voiceId, chapterIndex = 0, sentenceIndex = 0)
+    controller.start(bookId, voiceId, bookTitle, chapterIndex = 0, sentenceIndex = 0)
     val setPlaylistCallsBefore = playbackControl.setPlaylistCallCount
 
     playbackControl.currentIndex.value = 26 // >= 25 (window size 30 - reload margin 5), triggers a reload

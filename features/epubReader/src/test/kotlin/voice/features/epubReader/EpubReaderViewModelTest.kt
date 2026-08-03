@@ -5,6 +5,7 @@ import app.cash.molecule.launchMolecule
 import app.cash.turbine.test
 import io.mockk.Runs
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -34,7 +35,7 @@ class EpubReaderViewModelTest {
   private val bookId = BookId("content://book1")
   private val currentSentenceFlow = MutableStateFlow<Pair<Int, Int>?>(null)
   private val epubPlaylistController = mockk<EpubPlaylistController> {
-    coEvery { start(any(), any(), any(), any()) } just Runs
+    coEvery { start(any(), any(), any(), any(), any()) } just Runs
     every { currentSentenceFlow() } returns currentSentenceFlow
     every { togglePlayPause() } just Runs
   }
@@ -43,14 +44,21 @@ class EpubReaderViewModelTest {
       EpubSentence(bookId = bookId, chapterIndex = 0, index = 0, text = "Hello."),
       EpubSentence(bookId = bookId, chapterIndex = 0, index = 1, text = "World."),
     )
+    coEvery { sentences(bookId, 1) } returns listOf(
+      EpubSentence(bookId = bookId, chapterIndex = 1, index = 0, text = "Second chapter."),
+    )
   }
+  private var bookFixture = book()
   private val bookRepository = mockk<BookRepository> {
-    coEvery { get(bookId) } returns book()
+    coEvery { get(bookId) } answers { bookFixture }
     coEvery { updateBook(bookId, any()) } just Runs
   }
   private val playStateManager = PlayStateManager()
 
-  private fun book() = Book(
+  private fun book(
+    currentEpubChapterIndex: Int = 0,
+    currentEpubSentenceIndex: Int = 0,
+  ) = Book(
     content = BookContent(
       id = bookId,
       playbackSpeed = 1F,
@@ -71,6 +79,8 @@ class EpubReaderViewModelTest {
       part = null,
       sourceType = BookSourceType.Epub,
       voiceId = "voice-a",
+      currentEpubChapterIndex = currentEpubChapterIndex,
+      currentEpubSentenceIndex = currentEpubSentenceIndex,
     ),
     chapters = listOf(
       voice.core.data.Chapter(
@@ -119,6 +129,30 @@ class EpubReaderViewModelTest {
       assertEquals(expected = listOf("Hello.", "World."), actual = state.sentences)
       assertEquals(expected = listOf(EpubReaderViewState.ChapterEntry(0, "Chapter One")), actual = state.chapters)
     }
+  }
+
+  @Test
+  fun `resumes from the persisted chapter and sentence position instead of restarting`() = scope.runTest {
+    bookFixture = book(currentEpubChapterIndex = 1, currentEpubSentenceIndex = 0)
+    val viewModel = viewModel(
+      openResult = EpubBookOpener.OpenResult.Ready(
+        chapters = listOf(
+          EpubChapter(bookId = bookId, index = 0, title = "Chapter One"),
+          EpubChapter(bookId = bookId, index = 1, title = "Chapter Two"),
+        ),
+        voiceId = "voice-a",
+      ),
+    )
+
+    backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }.test {
+      awaitItem() // Loading
+      val state = awaitItem()
+      assertIs<EpubReaderViewState.Content>(state)
+      assertEquals(expected = listOf("Second chapter."), actual = state.sentences)
+    }
+    coVerify { epubPlaylistController.start(bookId, "voice-a", "Test Book", chapterIndex = 1, sentenceIndex = 0) }
   }
 
   @Test

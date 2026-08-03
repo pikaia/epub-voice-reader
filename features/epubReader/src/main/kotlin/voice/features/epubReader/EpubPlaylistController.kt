@@ -1,6 +1,7 @@
 package voice.features.epubReader
 
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,7 @@ public class EpubPlaylistController(
 
   private var bookId: BookId? = null
   private var voiceId: String? = null
+  private var bookTitle: String? = null
   private var window: List<WindowEntry> = emptyList()
 
   private val currentSentence = MutableStateFlow<Pair<Int, Int>?>(null)
@@ -42,12 +44,14 @@ public class EpubPlaylistController(
   public suspend fun start(
     bookId: BookId,
     voiceId: String,
+    bookTitle: String,
     chapterIndex: Int,
     sentenceIndex: Int,
   ) {
     this.bookId = bookId
     this.voiceId = voiceId
-    val (mediaItems, entries) = loadWindow(bookId, voiceId, chapterIndex, sentenceIndex)
+    this.bookTitle = bookTitle
+    val (mediaItems, entries) = loadWindow(bookId, voiceId, bookTitle, chapterIndex, sentenceIndex)
     window = entries
     currentSentence.value = entries.firstOrNull()?.let { it.chapterIndex to it.sentenceIndex }
     playbackControl.setPlaylist(mediaItems, startIndex = 0, startPositionMs = 0)
@@ -74,8 +78,9 @@ public class EpubPlaylistController(
   private suspend fun reload(from: WindowEntry) {
     val bookId = bookId ?: return
     val voiceId = voiceId ?: return
+    val bookTitle = bookTitle ?: return
     val next = nextPosition(from) ?: return
-    val (mediaItems, entries) = loadWindow(bookId, voiceId, next.chapterIndex, next.sentenceIndex)
+    val (mediaItems, entries) = loadWindow(bookId, voiceId, bookTitle, next.chapterIndex, next.sentenceIndex)
     if (entries.isEmpty()) return
     window = entries
     playbackControl.setPlaylist(mediaItems, startIndex = 0, startPositionMs = 0)
@@ -88,6 +93,7 @@ public class EpubPlaylistController(
   private suspend fun loadWindow(
     bookId: BookId,
     voiceId: String,
+    bookTitle: String,
     startChapterIndex: Int,
     startSentenceIndex: Int,
   ): Pair<List<MediaItem>, List<WindowEntry>> {
@@ -96,6 +102,7 @@ public class EpubPlaylistController(
     var chapterIndex = startChapterIndex
     var sentenceIndex = startSentenceIndex
     var sentences = epubBookRepo.sentences(bookId, chapterIndex)
+    val mediaMetadata = MediaMetadata.Builder().setTitle(bookTitle).build()
 
     while (entries.size < WINDOW_SIZE) {
       if (sentenceIndex >= sentences.size) {
@@ -110,6 +117,7 @@ public class EpubPlaylistController(
         is ClipResult.Success -> {
           mediaItems += MediaItem.Builder()
             .setUri(result.file.toURI().toString())
+            .setMediaMetadata(mediaMetadata)
             .build()
           entries += WindowEntry(chapterIndex, sentenceIndex)
         }
