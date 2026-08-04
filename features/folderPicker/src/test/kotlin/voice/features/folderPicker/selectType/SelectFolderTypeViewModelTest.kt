@@ -141,6 +141,33 @@ class SelectFolderTypeViewModelTest {
   }
 
   @Test
+  fun `folder containing a single epub file auto-detects to Audiobooks mode`() = runTest {
+    val folder = temporaryFolder.newFolder("single-epub")
+    temporaryFolder.newFile("single-epub/OnlyBook.epub")
+    val viewModel = SelectFolderTypeViewModel(
+      dispatcherProvider = DispatcherProvider(coroutineContext, coroutineContext, coroutineContext),
+      audiobookFolders = mockk(),
+      navigator = mockk(),
+      documentFileFactory = FileBasedDocumentFactory,
+      uri = folder.toUri(),
+      documentFile = DocumentFile.fromFile(folder),
+      origin = Origin.Default,
+    )
+
+    backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }.test {
+      awaitItem() // loading
+      val state = awaitItem()
+      assertEquals(expected = FolderMode.Audiobooks, actual = state.selectedFolderMode)
+      assertEquals(
+        expected = listOf(SelectFolderTypeViewState.Book("OnlyBook", 1)),
+        actual = state.books,
+      )
+    }
+  }
+
+  @Test
   fun `mixed audio subfolder and flat epub files both count correctly`() = runTest {
     val mixedFolder = temporaryFolder.newFolder("mixed")
     with(temporaryFolder) {

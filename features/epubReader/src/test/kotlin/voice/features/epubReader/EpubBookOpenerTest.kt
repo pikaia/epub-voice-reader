@@ -102,6 +102,31 @@ class EpubBookOpenerTest {
 
     assertIs<EpubBookOpener.OpenResult.Ready>(result)
     assertEquals(expected = listOf("Already Parsed"), actual = epubBookRepo.chapters(bookId).map { it.title })
+    assertEquals(expected = 1, actual = bookContentRepo.get(bookId)?.epubChapterCount)
+    assertEquals(expected = 0, actual = bookContentRepo.get(bookId)?.epubLastChapterSentenceCount)
+  }
+
+  @Test
+  fun `does not touch progress fields when they are already populated`() = runTest {
+    val file = buildMinimalEpub(File(testFolder.newFolder(), "book.epub"))
+    val bookId = BookId(file.toURI().toString())
+    bookContentRepo.put(
+      bookContent(bookId, voiceId = "voice-a").copy(
+        epubChapterCount = 5,
+        epubLastChapterSentenceCount = 9,
+      ),
+    )
+    epubBookRepo.replaceChapters(
+      bookId,
+      chapters = listOf(EpubChapter(bookId = bookId, index = 0, title = "Already Parsed")),
+      sentences = emptyList(),
+    )
+
+    val result = opener.open(bookId)
+
+    assertIs<EpubBookOpener.OpenResult.Ready>(result)
+    assertEquals(expected = 5, actual = bookContentRepo.get(bookId)?.epubChapterCount)
+    assertEquals(expected = 9, actual = bookContentRepo.get(bookId)?.epubLastChapterSentenceCount)
   }
 
   @Test

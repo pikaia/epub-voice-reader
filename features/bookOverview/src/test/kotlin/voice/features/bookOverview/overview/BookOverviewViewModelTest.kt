@@ -334,6 +334,7 @@ class BookOverviewViewModelTest {
           mockk {
             every { id } returns epubId
             every { sourceType } returns BookSourceType.Epub
+            every { isActive } returns true
             every { lastPlayedAt } returns java.time.Instant.parse("2026-06-01T00:00:00Z")
           },
         )
@@ -366,6 +367,7 @@ class BookOverviewViewModelTest {
           mockk {
             every { id } returns epubId
             every { sourceType } returns BookSourceType.Epub
+            every { isActive } returns true
             every { lastPlayedAt } returns java.time.Instant.parse("2026-01-01T00:00:00Z")
           },
         )
@@ -394,6 +396,7 @@ class BookOverviewViewModelTest {
           mockk {
             every { id } returns epubId
             every { sourceType } returns BookSourceType.Epub
+            every { isActive } returns true
             every { lastPlayedAt } returns java.time.Instant.parse("2026-06-01T00:00:00Z")
           },
         )
@@ -406,6 +409,74 @@ class BookOverviewViewModelTest {
 
     verify { navigator.goTo(Destination.EpubReader(epubId)) }
     verify(exactly = 0) { playerController.playPause() }
+  }
+
+  @Test
+  fun `playPause pauses the currently playing session instead of navigating away from it`() = runTest {
+    val audiobookId = BookId("content://audiobook")
+    val epubId = BookId("content://epub")
+    val navigator = mockk<Navigator>(relaxed = true)
+    val playerController = mockk<PlayerController>(relaxed = true)
+    val playStateManager = PlayStateManager().apply { playState = PlayStateManager.PlayState.Playing }
+    val viewModel = viewModel(
+      navigator = navigator,
+      playerController = playerController,
+      playStateManager = playStateManager,
+      currentBookStoreDataStore = MemoryDataStore(audiobookId),
+      contentRepo = mockk {
+        coEvery { get(audiobookId) } returns mockk {
+          every { lastPlayedAt } returns java.time.Instant.parse("2026-01-01T00:00:00Z")
+        }
+        coEvery { all() } returns listOf(
+          mockk {
+            every { id } returns epubId
+            every { sourceType } returns BookSourceType.Epub
+            every { isActive } returns true
+            every { lastPlayedAt } returns java.time.Instant.parse("2026-06-01T00:00:00Z")
+          },
+        )
+      },
+      folderPickerInSettingsFeatureFlag = MemoryFeatureFlag(false),
+      folderPickerMovedDialogShownStore = MemoryDataStore(false),
+    )
+
+    viewModel.playPause()
+
+    verify { playerController.playPause() }
+    verify(exactly = 0) { navigator.goTo(Destination.EpubReader(epubId)) }
+  }
+
+  @Test
+  fun `playPause ignores an epub that is no longer active in the library`() = runTest {
+    val audiobookId = BookId("content://audiobook")
+    val epubId = BookId("content://epub")
+    val navigator = mockk<Navigator>(relaxed = true)
+    val playerController = mockk<PlayerController>(relaxed = true)
+    val viewModel = viewModel(
+      navigator = navigator,
+      playerController = playerController,
+      currentBookStoreDataStore = MemoryDataStore(audiobookId),
+      contentRepo = mockk {
+        coEvery { get(audiobookId) } returns mockk {
+          every { lastPlayedAt } returns java.time.Instant.parse("2026-01-01T00:00:00Z")
+        }
+        coEvery { all() } returns listOf(
+          mockk {
+            every { id } returns epubId
+            every { sourceType } returns BookSourceType.Epub
+            every { isActive } returns false
+            every { lastPlayedAt } returns java.time.Instant.parse("2026-06-01T00:00:00Z")
+          },
+        )
+      },
+      folderPickerInSettingsFeatureFlag = MemoryFeatureFlag(false),
+      folderPickerMovedDialogShownStore = MemoryDataStore(false),
+    )
+
+    viewModel.playPause()
+
+    verify { playerController.playPause() }
+    verify(exactly = 0) { navigator.goTo(Destination.EpubReader(epubId)) }
   }
 
   @Test
@@ -444,6 +515,7 @@ class BookOverviewViewModelTest {
     contentRepo: BookContentRepo = mockk(),
     currentBookStoreDataStore: DataStore<BookId?> = MemoryDataStore(null),
     playerController: PlayerController = mockk(relaxed = true),
+    playStateManager: PlayStateManager = PlayStateManager(),
   ): BookOverviewViewModel {
     return BookOverviewViewModel(
       repo = mockk<BookRepository> {
@@ -453,7 +525,7 @@ class BookOverviewViewModelTest {
         every { scannerActive } returns MutableStateFlow(false)
         every { scan(any()) } just Runs
       },
-      playStateManager = PlayStateManager(),
+      playStateManager = playStateManager,
       playerController = playerController,
       currentBookStoreDataStore = currentBookStoreDataStore,
       folderPickerMovedDialogShownStore = folderPickerMovedDialogShownStore,

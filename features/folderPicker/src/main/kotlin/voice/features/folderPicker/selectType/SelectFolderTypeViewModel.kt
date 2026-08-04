@@ -55,10 +55,12 @@ class SelectFolderTypeViewModel(
       } -> {
         FolderMode.Audiobooks
       }
-      children.count { it.isEpubFile() } > 1 -> {
+      children.any { it.isEpubFile() } -> {
         // EPUB collections are flat: each .epub file is already a complete book on its own, no
         // subfolder needed. This reuses Audiobooks mode's existing "list each child individually"
-        // behavior rather than introducing a new FolderMode.
+        // behavior rather than introducing a new FolderMode. Also fires for a single flat epub —
+        // SingleBook mode would scan the folder itself as one book and find zero chapters, since
+        // the scanner only recognizes audio files as chapter content.
         FolderMode.Audiobooks
       }
       else -> FolderMode.SingleBook

@@ -1,6 +1,7 @@
 package voice.features.epubReader
 
 import dev.zacsweers.metro.Inject
+import voice.core.data.BookContent
 import voice.core.data.BookId
 import voice.core.data.EpubChapter
 import voice.core.data.repo.BookContentRepo
@@ -40,12 +41,12 @@ public class EpubBookOpener(
         EpubParseResult.DrmProtected -> return OpenResult.DrmProtected
         is EpubParseResult.Success -> Unit
       }
+      content = bookContentRepo.get(bookId) ?: content
       chapters = epubBookRepo.chapters(bookId)
-      val lastChapterSentenceCount = epubBookRepo.sentences(bookId, chapters.size - 1).size
-      content = content.copy(
-        epubChapterCount = chapters.size,
-        epubLastChapterSentenceCount = lastChapterSentenceCount,
-      )
+      content = content.withBackfilledProgressFields(bookId, chapters)
+      bookContentRepo.put(content)
+    } else if (content.epubChapterCount == 0) {
+      content = content.withBackfilledProgressFields(bookId, chapters)
       bookContentRepo.put(content)
     }
 
@@ -62,5 +63,16 @@ public class EpubBookOpener(
     }
 
     return OpenResult.Ready(chapters, voiceId)
+  }
+
+  private suspend fun BookContent.withBackfilledProgressFields(
+    bookId: BookId,
+    chapters: List<EpubChapter>,
+  ): BookContent {
+    val lastChapterSentenceCount = epubBookRepo.sentences(bookId, chapters.size - 1).size
+    return copy(
+      epubChapterCount = chapters.size,
+      epubLastChapterSentenceCount = lastChapterSentenceCount,
+    )
   }
 }

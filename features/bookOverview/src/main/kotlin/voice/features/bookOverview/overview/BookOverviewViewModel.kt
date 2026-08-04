@@ -303,9 +303,13 @@ class BookOverviewViewModel(
 
   fun playPause() {
     scope.launch {
+      if (playStateManager.playState == PlayStateManager.PlayState.Playing) {
+        playerController.playPause()
+        return@launch
+      }
       val audiobookCandidate = currentBookStoreDataStore.data.first()?.let { contentRepo.get(it) }
       val epubCandidate = contentRepo.all()
-        .filter { it.sourceType == BookSourceType.Epub }
+        .filter { it.sourceType == BookSourceType.Epub && it.isActive }
         .maxByOrNull { it.lastPlayedAt }
       if (epubCandidate != null &&
         (audiobookCandidate == null || epubCandidate.lastPlayedAt.isAfter(audiobookCandidate.lastPlayedAt))
