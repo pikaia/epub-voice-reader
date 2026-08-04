@@ -14,10 +14,12 @@ import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import kotlinx.coroutines.withContext
 import voice.core.common.DispatcherProvider
-import voice.core.data.audioFileCount
+import voice.core.data.bookFileCount
 import voice.core.data.folders.AudiobookFolders
 import voice.core.data.folders.FolderType
 import voice.core.data.isAudioFile
+import voice.core.data.isBookFile
+import voice.core.data.isEpubFile
 import voice.core.documentfile.CachedDocumentFile
 import voice.core.documentfile.CachedDocumentFileFactory
 import voice.core.documentfile.nameWithoutExtension
@@ -51,6 +53,12 @@ class SelectFolderTypeViewModel(
         val fileIsAudiobookThresholdMb = 200
         it.isAudioFile() && it.length > fileIsAudiobookThresholdMb * 1_000_000
       } -> {
+        FolderMode.Audiobooks
+      }
+      children.count { it.isEpubFile() } > 1 -> {
+        // EPUB collections are flat: each .epub file is already a complete book on its own, no
+        // subfolder needed. This reuses Audiobooks mode's existing "list each child individually"
+        // behavior rather than introducing a new FolderMode.
         FolderMode.Audiobooks
       }
       else -> FolderMode.SingleBook
@@ -105,7 +113,7 @@ class SelectFolderTypeViewModel(
             documentFile.children.map { child ->
               SelectFolderTypeViewState.Book(
                 name = child.nameWithoutExtension(),
-                fileCount = child.audioFileCount(),
+                fileCount = child.bookFileCount(),
               )
             }
           }
@@ -113,25 +121,25 @@ class SelectFolderTypeViewModel(
             listOf(
               SelectFolderTypeViewState.Book(
                 name = documentFile.nameWithoutExtension(),
-                fileCount = documentFile.audioFileCount(),
+                fileCount = documentFile.bookFileCount(),
               ),
             )
           }
           FolderMode.Authors -> {
             documentFile.children.flatMap { author ->
               val authorName = author.nameWithoutExtension()
-              if (author.isAudioFile()) {
+              if (author.isBookFile()) {
                 listOf(
                   SelectFolderTypeViewState.Book(
                     name = author.nameWithoutExtension(),
-                    fileCount = author.audioFileCount(),
+                    fileCount = author.bookFileCount(),
                   ),
                 )
               } else {
                 author.children.map { child ->
                   SelectFolderTypeViewState.Book(
                     name = "${child.nameWithoutExtension()} ($authorName)",
-                    fileCount = child.audioFileCount(),
+                    fileCount = child.bookFileCount(),
                   )
                 }
               }

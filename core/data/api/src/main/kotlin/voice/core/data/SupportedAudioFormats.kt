@@ -45,3 +45,15 @@ public fun CachedDocumentFile.audioFileCount(): Int {
     walk().count { it.isAudioFile() }
   }
 }
+
+public fun CachedDocumentFile.epubFileCount(): Int {
+  return if (isEpubFile()) {
+    1
+  } else {
+    walk().count { it.isEpubFile() }
+  }
+}
+
+public fun CachedDocumentFile.isBookFile(): Boolean = isAudioFile() || isEpubFile()
+
+public fun CachedDocumentFile.bookFileCount(): Int = audioFileCount() + epubFileCount()
