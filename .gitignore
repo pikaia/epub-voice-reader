@@ -1,5 +1,6 @@
 /.specify
 /site
+/.worktrees
 *.iml
 *.apk
 *.log
