@@ -169,6 +169,33 @@ class DataBaseMigratorTest {
   }
 
   @Test
+  fun migrate64() {
+    val dbName = "testDb"
+    val db = helper.createDatabase(dbName, 63)
+    db.execSQL(
+      "INSERT INTO `content2`(`id`,`playbackSpeed`,`skipSilence`,`isActive`,`lastPlayedAt`,`author`,`name`," +
+        "`addedAt`,`chapters`,`currentChapter`,`positionInChapter`,`cover`,`gain`,`genre`,`narrator`,`series`," +
+        "`part`,`sourceType`,`voiceId`,`currentEpubChapterIndex`,`currentEpubSentenceIndex`) " +
+        "VALUES ('book1', 1.0, 0, 1, '1970-01-01T00:00:00Z', NULL, 'A Book', '1970-01-01T00:00:00Z', '[]', " +
+        "'chapter1', 0, NULL, 0, NULL, NULL, NULL, NULL, 'Epub', NULL, 0, 0)",
+    )
+    db.close()
+
+    val migratedDb = helper.runMigrationsAndValidate(
+      dbName,
+      64,
+      true,
+      *allMigrations(),
+    )
+
+    val cursor = migratedDb.query("SELECT * FROM content2 WHERE id = 'book1'")
+    cursor.moveToFirst()
+    assertEquals(expected = 0, actual = cursor.getInt("epubChapterCount"))
+    assertEquals(expected = 0, actual = cursor.getInt("epubLastChapterSentenceCount"))
+    cursor.close()
+  }
+
+  @Test
   fun migrate43() {
     val dbName = "testDb"
     val db = helper.createDatabase(dbName, 43)

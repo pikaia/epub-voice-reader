@@ -35,6 +35,10 @@ public data class BookContent(
   val currentEpubChapterIndex: Int = 0,
   @ColumnInfo(defaultValue = "0")
   val currentEpubSentenceIndex: Int = 0,
+  @ColumnInfo(defaultValue = "0")
+  val epubChapterCount: Int = 0,
+  @ColumnInfo(defaultValue = "0")
+  val epubLastChapterSentenceCount: Int = 0,
 ) {
 
   @Ignore
@@ -48,6 +52,9 @@ public data class BookContent(
     }
     require(currentEpubChapterIndex >= 0 && currentEpubSentenceIndex >= 0) {
       "invalid epub position in $this"
+    }
+    require(epubChapterCount >= 0 && epubLastChapterSentenceCount >= 0) {
+      "invalid epub progress cache in $this"
     }
   }
 }
