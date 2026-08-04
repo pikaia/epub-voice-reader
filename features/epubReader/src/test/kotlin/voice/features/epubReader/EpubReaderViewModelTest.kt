@@ -51,7 +51,10 @@ class EpubReaderViewModelTest {
   private var bookFixture = book()
   private val bookRepository = mockk<BookRepository> {
     coEvery { get(bookId) } answers { bookFixture }
-    coEvery { updateBook(bookId, any()) } just Runs
+    coEvery { updateBook(bookId, any()) } answers {
+      val update = secondArg<(BookContent) -> BookContent>()
+      bookFixture = bookFixture.copy(content = update(bookFixture.content))
+    }
   }
   private val playStateManager = PlayStateManager()
 
@@ -207,6 +210,23 @@ class EpubReaderViewModelTest {
       awaitItem() // Loading
       assertEquals(expected = EpubReaderViewState.Error("network error"), actual = awaitItem())
     }
+  }
+
+  @Test
+  fun `updates lastPlayedAt when the sentence position changes`() = scope.runTest {
+    val viewModel = viewModel()
+
+    backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }.test {
+      awaitItem() // Loading
+      awaitItem() // initial Content
+
+      currentSentenceFlow.value = 0 to 1
+      awaitItem()
+    }
+
+    assertEquals(expected = true, actual = bookFixture.content.lastPlayedAt.isAfter(Instant.EPOCH))
   }
 
   @Test

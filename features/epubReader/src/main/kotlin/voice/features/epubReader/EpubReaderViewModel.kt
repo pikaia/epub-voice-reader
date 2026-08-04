@@ -15,6 +15,7 @@ import voice.core.data.repo.BookRepository
 import voice.core.data.repo.EpubBookRepo
 import voice.core.logging.api.Logger
 import voice.core.playback.playstate.PlayStateManager
+import java.time.Instant
 
 @AssistedInject
 public class EpubReaderViewModel(
@@ -88,7 +89,11 @@ public class EpubReaderViewModel(
             updateSentencesForChapter(chapterIndex)
           }
           bookRepository.updateBook(bookId) {
-            it.copy(currentEpubChapterIndex = chapterIndex, currentEpubSentenceIndex = sentenceIndex)
+            it.copy(
+              currentEpubChapterIndex = chapterIndex,
+              currentEpubSentenceIndex = sentenceIndex,
+              lastPlayedAt = Instant.now(),
+            )
           }
         }
       }
