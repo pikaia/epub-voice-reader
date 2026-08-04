@@ -32,6 +32,7 @@ public class EpubBookOpener(
 
   public suspend fun open(bookId: BookId): OpenResult {
     var chapters = epubBookRepo.chapters(bookId)
+    var content = bookContentRepo.get(bookId) ?: return OpenResult.Malformed("book not found: $bookId")
     if (chapters.isEmpty()) {
       val documentFile = cachedDocumentFileFactory.create(bookId.toUri())
       when (val result = epubImporter.import(bookId, documentFile)) {
@@ -40,9 +41,14 @@ public class EpubBookOpener(
         is EpubParseResult.Success -> Unit
       }
       chapters = epubBookRepo.chapters(bookId)
+      val lastChapterSentenceCount = epubBookRepo.sentences(bookId, chapters.size - 1).size
+      content = content.copy(
+        epubChapterCount = chapters.size,
+        epubLastChapterSentenceCount = lastChapterSentenceCount,
+      )
+      bookContentRepo.put(content)
     }
 
-    val content = bookContentRepo.get(bookId) ?: return OpenResult.Malformed("book not found: $bookId")
     val voiceId = content.voiceId ?: run {
       val firstVoice = voiceManager.availableVoices().first()
       if (!firstVoice.installed) {

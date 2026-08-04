@@ -83,6 +83,8 @@ class EpubBookOpenerTest {
     assertEquals(expected = "voice-a", actual = result.voiceId)
     assertEquals(expected = listOf("Chapter One"), actual = epubBookRepo.chapters(bookId).map { it.title })
     assertEquals(expected = "voice-a", actual = bookContentRepo.get(bookId)?.voiceId)
+    assertEquals(expected = 1, actual = bookContentRepo.get(bookId)?.epubChapterCount)
+    assertEquals(expected = 2, actual = bookContentRepo.get(bookId)?.epubLastChapterSentenceCount)
   }
 
   @Test
