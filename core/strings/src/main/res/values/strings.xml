@@ -93,13 +93,13 @@
     <!-- Title for folder mode where the selected folder is one book. -->
     <string name="folder.mode.single.title">Single Book Mode: One folder equals one book.</string>
     <!-- Empty-state message when no books are detected from selected files. -->
-    <string name="folder.type.book_example.empty">Voice could not detect any books. Are there any audio files?</string>
+    <string name="folder.type.book_example.empty">Voice could not detect any books. Are there any audio or EPUB files?</string>
     <!-- Header above the preview of books detected from a folder structure. -->
     <string name="folder.type.book_example.header">This would lead to the following books being detected</string>
     <!-- Pluralized file count shown in folder structure previews. -->
     <plurals name="folder.type.file_count">
-        <item quantity="one">%d audio file</item>
-        <item quantity="other">%d audio files</item>
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
     </plurals>
     <!-- Title for choosing how audiobook files are structured. -->
     <string name="folder.type.title">How are your files structured?</string>
