@@ -12,6 +12,7 @@ public interface EpubPlaybackControl {
     mediaItems: List<MediaItem>,
     startIndex: Int,
     startPositionMs: Long,
+    autoPlay: Boolean,
   )
 
   public fun currentMediaItemIndexFlow(): Flow<Int>
@@ -27,8 +28,9 @@ public class RealEpubPlaybackControl(private val playerController: PlayerControl
     mediaItems: List<MediaItem>,
     startIndex: Int,
     startPositionMs: Long,
+    autoPlay: Boolean,
   ) {
-    playerController.setEpubPlaylist(mediaItems, startIndex, startPositionMs)
+    playerController.setEpubPlaylist(mediaItems, startIndex, startPositionMs, autoPlay)
   }
 
   override fun currentMediaItemIndexFlow(): Flow<Int> = playerController.currentMediaItemIndexFlow()

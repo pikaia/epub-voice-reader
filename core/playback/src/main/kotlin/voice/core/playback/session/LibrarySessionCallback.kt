@@ -65,7 +65,6 @@ class LibrarySessionCallback(
     startIndex: Int,
     startPositionMs: Long,
   ): ListenableFuture<MediaItemsWithStartPosition> {
-    Logger.i("DEBUGTRACE onSetMediaItems(mediaItems.size=${mediaItems.size}, startIndex=$startIndex, startPosition=$startPositionMs)")
     val item = mediaItems.singleOrNull()
     return if (startIndex == C.INDEX_UNSET && startPositionMs == C.TIME_UNSET && item != null) {
       scope.future {

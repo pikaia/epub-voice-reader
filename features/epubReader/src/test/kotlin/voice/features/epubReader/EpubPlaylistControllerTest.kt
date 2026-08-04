@@ -57,6 +57,7 @@ class EpubPlaylistControllerTest {
 
     assertEquals(expected = 5, actual = playbackControl.lastPlaylist?.size)
     assertEquals(expected = 0, actual = playbackControl.lastStartIndex)
+    assertEquals(expected = true, actual = playbackControl.lastAutoPlay)
   }
 
   @Test
@@ -103,6 +104,10 @@ class EpubPlaylistControllerTest {
     runCurrent()
 
     assertEquals(expected = setPlaylistCallsBefore + 1, actual = playbackControl.setPlaylistCallCount)
+    // A reload must never force playback back on — if the user paused while the reload was in
+    // flight, forcing autoPlay=true here would silently override that pause (the root cause of
+    // the "random resume while paused" bug: reload() fired every ~50-70s regardless of pause state).
+    assertEquals(expected = false, actual = playbackControl.lastAutoPlay)
   }
 
   private class FakeEpubBookRepo : EpubBookRepo {
@@ -134,6 +139,7 @@ class EpubPlaylistControllerTest {
   private class FakePlaybackControl : EpubPlaybackControl {
     var lastPlaylist: List<MediaItem>? = null
     var lastStartIndex: Int? = null
+    var lastAutoPlay: Boolean? = null
     var setPlaylistCallCount = 0
     var togglePlayPauseCallCount = 0
     val currentIndex = MutableStateFlow(0)
@@ -142,9 +148,11 @@ class EpubPlaylistControllerTest {
       mediaItems: List<MediaItem>,
       startIndex: Int,
       startPositionMs: Long,
+      autoPlay: Boolean,
     ) {
       lastPlaylist = mediaItems
       lastStartIndex = startIndex
+      lastAutoPlay = autoPlay
       setPlaylistCallCount++
     }
 

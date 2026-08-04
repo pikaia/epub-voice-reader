@@ -217,15 +217,19 @@ class PlayerController(
     mediaItems: List<MediaItem>,
     startIndex: Int,
     startPositionMs: Long,
+    autoPlay: Boolean,
   ) {
-    Logger.i("DEBUGTRACE setEpubPlaylist(size=${mediaItems.size}, startIndex=$startIndex) called, about to force play()")
     scope.launch {
       val controller = awaitConnect() ?: return@launch
-      Logger.i("DEBUGTRACE setEpubPlaylist: controller connected, isPlaying=${controller.isPlaying} before setMediaItems")
+      // A background window reload (autoPlay=false) must not resume playback the user paused
+      // while the reload was in flight — only an explicit start (autoPlay=true) or a session that
+      // was already playing should end up playing after the new queue is set.
+      val shouldPlay = autoPlay || controller.isPlaying
       controller.setMediaItems(mediaItems, startIndex, startPositionMs)
       controller.prepare()
-      controller.play()
-      Logger.i("DEBUGTRACE setEpubPlaylist: play() called")
+      if (shouldPlay) {
+        controller.play()
+      }
     }
   }
 
@@ -259,7 +263,6 @@ class PlayerController(
   fun toggleEpubPlayPause() {
     scope.launch {
       val controller = awaitConnect() ?: return@launch
-      Logger.i("DEBUGTRACE toggleEpubPlayPause: isPlaying=${controller.isPlaying}, about to ${if (controller.isPlaying) "pause" else "play"}")
       if (controller.isPlaying) {
         controller.pause()
       } else {
