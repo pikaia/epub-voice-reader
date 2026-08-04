@@ -18,6 +18,7 @@ import androidx.core.net.toUri
 import androidx.datastore.core.DataStore
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import voice.core.common.AppInfoProvider
 import voice.core.common.DispatcherProvider
@@ -301,7 +302,19 @@ class BookOverviewViewModel(
   }
 
   fun playPause() {
-    playerController.playPause()
+    scope.launch {
+      val audiobookCandidate = currentBookStoreDataStore.data.first()?.let { contentRepo.get(it) }
+      val epubCandidate = contentRepo.all()
+        .filter { it.sourceType == BookSourceType.Epub }
+        .maxByOrNull { it.lastPlayedAt }
+      if (epubCandidate != null &&
+        (audiobookCandidate == null || epubCandidate.lastPlayedAt.isAfter(audiobookCandidate.lastPlayedAt))
+      ) {
+        navigator.goTo(Destination.EpubReader(epubCandidate.id))
+      } else {
+        playerController.playPause()
+      }
+    }
   }
 
   fun onPermissionBugCardClick() {
