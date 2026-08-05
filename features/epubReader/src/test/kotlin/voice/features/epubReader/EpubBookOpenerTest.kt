@@ -135,6 +135,33 @@ class EpubBookOpenerTest {
   }
 
   @Test
+  fun `backfills epubTotalCharacterCount for a book whose chapters were parsed by an earlier version of the app`() = runTest {
+    val file = buildMinimalEpub(File(testFolder.newFolder(), "book.epub"))
+    val bookId = BookId(file.toURI().toString())
+    bookContentRepo.put(
+      bookContent(bookId, voiceId = "voice-a").copy(
+        epubChapterCount = 1,
+        epubLastChapterSentenceCount = 2,
+        epubTotalCharacterCount = 0,
+      ),
+    )
+    epubBookRepo.replaceChapters(
+      bookId,
+      chapters = listOf(EpubChapter(bookId = bookId, index = 0, title = "Already Parsed")),
+      sentences = listOf(
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 0, text = "Hello there."),
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 1, text = "This is chapter one."),
+      ),
+    )
+
+    val result = opener.open(bookId)
+
+    assertIs<EpubBookOpener.OpenResult.Ready>(result)
+    // "Hello there.".length (12) + "This is chapter one.".length (20)
+    assertEquals(expected = 32, actual = bookContentRepo.get(bookId)?.epubTotalCharacterCount)
+  }
+
+  @Test
   fun `skips voice assignment when a voice is already set`() = runTest {
     val file = buildMinimalEpub(File(testFolder.newFolder(), "book.epub"))
     val bookId = BookId(file.toURI().toString())

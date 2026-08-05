@@ -45,7 +45,7 @@ public class EpubBookOpener(
       chapters = epubBookRepo.chapters(bookId)
       content = content.withBackfilledProgressFields(bookId, chapters)
       bookContentRepo.put(content)
-    } else if (content.epubChapterCount == 0) {
+    } else if (content.epubChapterCount == 0 || content.epubTotalCharacterCount == 0) {
       content = content.withBackfilledProgressFields(bookId, chapters)
       bookContentRepo.put(content)
     }

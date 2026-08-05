@@ -58,6 +58,7 @@ public class EpubPlaylistController(
     chapterIndex: Int,
     sentenceIndex: Int,
   ) {
+    indexCollectionJob?.cancel()
     playbackControl.pauseCurrentSession()
     this.bookId = bookId
     this.voiceId = voiceId
@@ -66,7 +67,6 @@ public class EpubPlaylistController(
     window = entries
     currentSentence.value = entries.firstOrNull()?.let { it.chapterIndex to it.sentenceIndex }
     playbackControl.setPlaylist(mediaItems, startIndex = 0, startPositionMs = 0, autoPlay = true)
-    indexCollectionJob?.cancel()
     indexCollectionJob = scope.launch {
       playbackControl.currentMediaItemIndexFlow().collect { index ->
         onCurrentMediaItemIndexChanged(index)

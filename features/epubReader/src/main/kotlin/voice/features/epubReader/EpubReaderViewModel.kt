@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import voice.core.common.DispatcherProvider
@@ -45,6 +46,7 @@ public class EpubReaderViewModel(
   private var voiceId: String? = null
   private var bookTitle: String? = null
   private var activeChapterIndex = 0
+  private var playlistTransitionJob: Job? = null
 
   init {
     scope.launch {
@@ -108,7 +110,8 @@ public class EpubReaderViewModel(
     val voiceId = voiceId ?: return
     val bookTitle = bookTitle ?: return
     activeChapterIndex = chapterIndex
-    scope.launch {
+    playlistTransitionJob?.cancel()
+    playlistTransitionJob = scope.launch {
       updateSentencesForChapter(chapterIndex)
       epubPlaylistController.start(bookId, voiceId, bookTitle, chapterIndex, sentenceIndex = 0)
     }
@@ -120,7 +123,8 @@ public class EpubReaderViewModel(
     val current = openState.value
     if (current !is OpenState.Ready) return
     val targetSentenceIndex = sentenceIndexForSeekPosition(current.sentences, position)
-    scope.launch {
+    playlistTransitionJob?.cancel()
+    playlistTransitionJob = scope.launch {
       epubPlaylistController.start(bookId, voiceId, bookTitle, activeChapterIndex, targetSentenceIndex)
     }
   }

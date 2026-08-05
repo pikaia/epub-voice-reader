@@ -41,6 +41,15 @@ private fun Book.epubDuration(): Long = estimatedEpubDurationMs(content.epubTota
 private fun Book.epubPosition(): Long {
   val chapterCount = content.epubChapterCount
   if (chapterCount == 0) return 0L
+  // Matches BookOverviewCategory.kt's epubCategory() FINISHED threshold exactly (chapterIndex at
+  // the last chapter, sentenceIndex within its last 2 sentences) — without this, a book the app
+  // already categorizes as FINISHED would still show less than 100% here, since
+  // currentEpubChapterIndex can never reach chapterCount (its max valid value is
+  // chapterCount - 1), producing a visible contradiction between the "Completed" section header
+  // and the percentage/remaining-time shown on the same card.
+  val isFinished = content.currentEpubChapterIndex >= chapterCount - 1 &&
+    content.currentEpubSentenceIndex >= content.epubLastChapterSentenceCount - 2
+  if (isFinished) return epubDuration()
   val elapsedFraction = content.currentEpubChapterIndex.toFloat() / chapterCount.toFloat()
   return (epubDuration() * elapsedFraction).toLong()
 }

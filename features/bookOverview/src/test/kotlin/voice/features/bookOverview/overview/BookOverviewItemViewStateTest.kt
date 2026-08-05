@@ -77,4 +77,44 @@ class BookOverviewItemViewStateTest {
     assertEquals(expected = 0.25F, actual = state.progress)
     assertEquals(expected = "0:45", actual = state.remainingTime)
   }
+
+  @Test
+  fun `finished epub shows full progress and zero remaining time, matching its category`() {
+    val book = book().let { book ->
+      book.copy(
+        content = book.content.copy(
+          sourceType = BookSourceType.Epub,
+          epubChapterCount = 4,
+          epubLastChapterSentenceCount = 10,
+          epubTotalCharacterCount = 15 * 60,
+          currentEpubChapterIndex = 3,
+          currentEpubSentenceIndex = 9,
+        ),
+      )
+    }
+    val state = book.toItemViewState()
+
+    assertEquals(expected = 1F, actual = state.progress)
+    assertEquals(expected = "0:00", actual = state.remainingTime)
+  }
+
+  @Test
+  fun `finished single-chapter epub shows full progress, not permanently zero`() {
+    val book = book().let { book ->
+      book.copy(
+        content = book.content.copy(
+          sourceType = BookSourceType.Epub,
+          epubChapterCount = 1,
+          epubLastChapterSentenceCount = 5,
+          epubTotalCharacterCount = 15 * 30,
+          currentEpubChapterIndex = 0,
+          currentEpubSentenceIndex = 4,
+        ),
+      )
+    }
+    val state = book.toItemViewState()
+
+    assertEquals(expected = 1F, actual = state.progress)
+    assertEquals(expected = "0:00", actual = state.remainingTime)
+  }
 }
