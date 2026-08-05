@@ -133,5 +133,8 @@ class EpubImporterTest {
       bookId: BookId,
       chapterIndex: Int,
     ): List<EpubSentence> = sentences[bookId].orEmpty().filter { it.chapterIndex == chapterIndex }
+
+    override suspend fun totalCharacterCount(bookId: BookId): Int =
+      sentences[bookId].orEmpty().sumOf { it.text.length }
   }
 }
