@@ -85,6 +85,8 @@ class EpubBookOpenerTest {
     assertEquals(expected = "voice-a", actual = bookContentRepo.get(bookId)?.voiceId)
     assertEquals(expected = 1, actual = bookContentRepo.get(bookId)?.epubChapterCount)
     assertEquals(expected = 2, actual = bookContentRepo.get(bookId)?.epubLastChapterSentenceCount)
+    val expectedCharacterCount = epubBookRepo.sentences(bookId, 0).sumOf { it.text.length }
+    assertEquals(expected = expectedCharacterCount, actual = bookContentRepo.get(bookId)?.epubTotalCharacterCount)
   }
 
   @Test
@@ -104,6 +106,7 @@ class EpubBookOpenerTest {
     assertEquals(expected = listOf("Already Parsed"), actual = epubBookRepo.chapters(bookId).map { it.title })
     assertEquals(expected = 1, actual = bookContentRepo.get(bookId)?.epubChapterCount)
     assertEquals(expected = 0, actual = bookContentRepo.get(bookId)?.epubLastChapterSentenceCount)
+    assertEquals(expected = 0, actual = bookContentRepo.get(bookId)?.epubTotalCharacterCount)
   }
 
   @Test
@@ -114,6 +117,7 @@ class EpubBookOpenerTest {
       bookContent(bookId, voiceId = "voice-a").copy(
         epubChapterCount = 5,
         epubLastChapterSentenceCount = 9,
+        epubTotalCharacterCount = 42,
       ),
     )
     epubBookRepo.replaceChapters(
@@ -127,6 +131,7 @@ class EpubBookOpenerTest {
     assertIs<EpubBookOpener.OpenResult.Ready>(result)
     assertEquals(expected = 5, actual = bookContentRepo.get(bookId)?.epubChapterCount)
     assertEquals(expected = 9, actual = bookContentRepo.get(bookId)?.epubLastChapterSentenceCount)
+    assertEquals(expected = 42, actual = bookContentRepo.get(bookId)?.epubTotalCharacterCount)
   }
 
   @Test
@@ -263,6 +268,9 @@ class EpubBookOpenerTest {
       bookId: BookId,
       chapterIndex: Int,
     ): List<EpubSentence> = sentences[bookId].orEmpty().filter { it.chapterIndex == chapterIndex }
+
+    override suspend fun totalCharacterCount(bookId: BookId): Int =
+      sentences[bookId].orEmpty().sumOf { it.text.length }
   }
 
   private class FakeBookContentRepo : BookContentRepo {

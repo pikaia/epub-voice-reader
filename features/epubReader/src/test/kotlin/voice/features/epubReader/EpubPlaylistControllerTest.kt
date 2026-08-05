@@ -156,6 +156,9 @@ class EpubPlaylistControllerTest {
       bookId: BookId,
       chapterIndex: Int,
     ): List<EpubSentence> = bySentenceIndex[chapterIndex].orEmpty()
+
+    override suspend fun totalCharacterCount(bookId: BookId): Int =
+      bySentenceIndex.values.flatMap { it }.sumOf { it.text.length }
   }
 
   private class FakePlaybackControl : EpubPlaybackControl {

@@ -73,6 +73,7 @@ public class EpubBookOpener(
     return copy(
       epubChapterCount = chapters.size,
       epubLastChapterSentenceCount = lastChapterSentenceCount,
+      epubTotalCharacterCount = epubBookRepo.totalCharacterCount(bookId),
     )
   }
 }
