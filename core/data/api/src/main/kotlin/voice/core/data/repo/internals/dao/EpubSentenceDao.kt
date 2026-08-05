@@ -19,6 +19,9 @@ public interface EpubSentenceDao {
     chapterIndex: Int,
   ): List<EpubSentence>
 
+  @Query("SELECT COALESCE(SUM(LENGTH(text)), 0) FROM epubSentence WHERE bookId = :bookId")
+  public suspend fun totalCharacterCount(bookId: BookId): Int
+
   @Query("DELETE FROM epubSentence WHERE bookId = :bookId")
   public suspend fun deleteForBook(bookId: BookId)
 }

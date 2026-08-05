@@ -18,4 +18,6 @@ public interface EpubBookRepo {
     bookId: BookId,
     chapterIndex: Int,
   ): List<EpubSentence>
+
+  public suspend fun totalCharacterCount(bookId: BookId): Int
 }

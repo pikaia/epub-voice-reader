@@ -65,4 +65,28 @@ class EpubBookRepoImplTest {
     assertEquals(expected = listOf("New"), actual = repo.chapters(bookId).map { it.title })
     assertEquals(expected = listOf("New sentence."), actual = repo.sentences(bookId, 0).map { it.text })
   }
+
+  @Test
+  fun `totalCharacterCount sums every sentence across every chapter`() = runTest {
+    val bookId = BookId("content://book1")
+    repo.replaceChapters(
+      bookId,
+      chapters = listOf(
+        EpubChapter(bookId = bookId, index = 0, title = "Chapter One"),
+        EpubChapter(bookId = bookId, index = 1, title = "Chapter Two"),
+      ),
+      sentences = listOf(
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 0, text = "12345"),
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 1, text = "1234567890"),
+        EpubSentence(bookId = bookId, chapterIndex = 1, index = 0, text = "123"),
+      ),
+    )
+
+    assertEquals(expected = 18, actual = repo.totalCharacterCount(bookId))
+  }
+
+  @Test
+  fun `totalCharacterCount is zero for a book with no sentences`() = runTest {
+    assertEquals(expected = 0, actual = repo.totalCharacterCount(BookId("content://unknown")))
+  }
 }

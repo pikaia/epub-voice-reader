@@ -36,4 +36,6 @@ public class EpubBookRepoImpl(
     bookId: BookId,
     chapterIndex: Int,
   ): List<EpubSentence> = sentenceDao.sentences(bookId, chapterIndex)
+
+  override suspend fun totalCharacterCount(bookId: BookId): Int = sentenceDao.totalCharacterCount(bookId)
 }

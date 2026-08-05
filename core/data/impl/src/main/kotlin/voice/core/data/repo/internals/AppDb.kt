@@ -49,6 +49,7 @@ import voice.core.data.repo.internals.migrations.Migration56
     AutoMigration(from = 61, to = 62),
     AutoMigration(from = 62, to = 63),
     AutoMigration(from = 63, to = 64),
+    AutoMigration(from = 64, to = 65),
   ],
 )
 @TypeConverters(Converters::class)
@@ -65,7 +66,7 @@ public abstract class AppDb : RoomDatabase() {
   public abstract fun recentBookSearchDao(): RecentBookSearchDao
 
   internal companion object {
-    const val VERSION = 64
+    const val VERSION = 65
     const val DATABASE_NAME = "autoBookDB"
   }
 }
