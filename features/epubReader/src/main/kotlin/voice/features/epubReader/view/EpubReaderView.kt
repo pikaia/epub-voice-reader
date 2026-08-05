@@ -2,8 +2,12 @@ package voice.features.epubReader.view
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,24 +20,29 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import voice.core.ui.formatTime
 import voice.features.epubReader.EpubReaderViewState
+import kotlin.time.Duration
 
 @Composable
 public fun EpubReaderView(
   viewState: EpubReaderViewState,
   onPlayPauseClick: () -> Unit,
   onChapterSelect: (Int) -> Unit,
+  onSeek: (Duration) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   when (viewState) {
@@ -52,6 +61,7 @@ public fun EpubReaderView(
         viewState = viewState,
         onPlayPauseClick = onPlayPauseClick,
         onChapterSelect = onChapterSelect,
+        onSeek = onSeek,
         modifier = modifier,
       )
     }
@@ -63,6 +73,7 @@ private fun EpubReaderContent(
   viewState: EpubReaderViewState.Content,
   onPlayPauseClick: () -> Unit,
   onChapterSelect: (Int) -> Unit,
+  onSeek: (Duration) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   var chapterMenuExpanded by remember { mutableStateOf(false) }
@@ -109,30 +120,87 @@ private fun EpubReaderContent(
       }
     },
   ) { contentPadding ->
-    LazyColumn(
-      state = listState,
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(contentPadding),
-      verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-      itemsIndexed(viewState.sentences) { index, sentence ->
-        val isActive = index == viewState.activeSentenceIndex
-        Text(
-          text = sentence,
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-            .background(
-              if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
-            ),
-          color = if (isActive) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-          } else {
-            MaterialTheme.colorScheme.onBackground
-          },
-        )
+    Column(modifier = Modifier.padding(contentPadding)) {
+      ChapterScrubberRow(
+        duration = viewState.chapterDuration,
+        position = viewState.chapterPosition,
+        onSeek = onSeek,
+      )
+      LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        itemsIndexed(viewState.sentences) { index, sentence ->
+          val isActive = index == viewState.activeSentenceIndex
+          Text(
+            text = sentence,
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(8.dp)
+              .background(
+                if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
+              ),
+            color = if (isActive) {
+              MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+              MaterialTheme.colorScheme.onBackground
+            },
+          )
+        }
       }
     }
+  }
+}
+
+@Composable
+private fun ChapterScrubberRow(
+  duration: Duration,
+  position: Duration,
+  onSeek: (Duration) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .padding(horizontal = 16.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    var localValue by remember { mutableFloatStateOf(0F) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val dragging by interactionSource.collectIsDraggedAsState()
+    Text(
+      text = formatTime(
+        timeMs = if (dragging) {
+          (duration * localValue.toDouble()).inWholeMilliseconds
+        } else {
+          position.inWholeMilliseconds
+        },
+        durationMs = duration.inWholeMilliseconds,
+      ),
+    )
+    Slider(
+      modifier = Modifier
+        .weight(1F)
+        .padding(horizontal = 8.dp),
+      interactionSource = interactionSource,
+      value = if (dragging) {
+        localValue
+      } else {
+        (position / duration).toFloat().takeUnless { it.isNaN() }?.coerceIn(0F, 1F) ?: 0F
+      },
+      onValueChange = {
+        localValue = it
+      },
+      onValueChangeFinished = {
+        onSeek(duration * localValue.toDouble())
+      },
+    )
+    Text(
+      text = formatTime(
+        timeMs = duration.inWholeMilliseconds,
+        durationMs = duration.inWholeMilliseconds,
+      ),
+    )
   }
 }

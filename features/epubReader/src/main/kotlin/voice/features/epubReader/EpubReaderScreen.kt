@@ -25,6 +25,7 @@ public fun EpubReaderScreen(bookId: BookId) {
     viewState = viewState,
     onPlayPauseClick = viewModel::playPause,
     onChapterSelect = viewModel::onChapterSelect,
+    onSeek = viewModel::seekTo,
   )
 }
 
