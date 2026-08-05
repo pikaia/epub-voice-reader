@@ -28,6 +28,7 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.time.Duration.Companion.milliseconds
 
 class EpubReaderViewModelTest {
 
@@ -179,6 +180,40 @@ class EpubReaderViewModelTest {
       assertIs<EpubReaderViewState.Content>(state)
       assertEquals(expected = 1, actual = state.activeSentenceIndex)
     }
+  }
+
+  @Test
+  fun `chapter position and duration are estimated from the loaded sentence texts`() = scope.runTest {
+    val viewModel = viewModel()
+
+    backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }.test {
+      awaitItem() // Loading
+      val state = awaitItem()
+      assertIs<EpubReaderViewState.Content>(state)
+      // "Hello." (6 chars) + "World." (6 chars) = 12 chars -> 800ms at 15 chars/sec; position 0
+      assertEquals(expected = 0.milliseconds, actual = state.chapterPosition)
+      assertEquals(expected = 800.milliseconds, actual = state.chapterDuration)
+    }
+  }
+
+  @Test
+  fun `seekTo resumes playback at the sentence resolved from the seek position`() = scope.runTest {
+    val viewModel = viewModel()
+    backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }.test {
+      awaitItem() // Loading
+      awaitItem() // Content
+    }
+
+    viewModel.seekTo(400.milliseconds) // into "World." (the second sentence, index 1)
+    // seekTo dispatches epubPlaylistController.start asynchronously via scope.launch; runCurrent()
+    // drives the test dispatcher's queue so that call has actually happened before we verify it.
+    testScheduler.runCurrent()
+
+    coVerify { epubPlaylistController.start(bookId, "voice-a", "Test Book", chapterIndex = 0, sentenceIndex = 1) }
   }
 
   @Test

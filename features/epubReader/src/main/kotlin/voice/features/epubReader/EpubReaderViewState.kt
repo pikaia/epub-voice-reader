@@ -1,5 +1,7 @@
 package voice.features.epubReader
 
+import kotlin.time.Duration
+
 public sealed interface EpubReaderViewState {
   public data object Loading : EpubReaderViewState
 
@@ -12,6 +14,8 @@ public sealed interface EpubReaderViewState {
     val failedSentenceIndices: Set<Int>,
     val isPlaying: Boolean,
     val chapters: List<ChapterEntry>,
+    val chapterPosition: Duration,
+    val chapterDuration: Duration,
   ) : EpubReaderViewState
 
   public data class ChapterEntry(

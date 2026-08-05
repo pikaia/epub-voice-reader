@@ -15,6 +15,7 @@ import voice.core.data.repo.BookRepository
 import voice.core.data.repo.EpubBookRepo
 import voice.core.playback.playstate.PlayStateManager
 import java.time.Instant
+import kotlin.time.Duration
 
 @AssistedInject
 public class EpubReaderViewModel(
@@ -113,6 +114,17 @@ public class EpubReaderViewModel(
     }
   }
 
+  public fun seekTo(position: Duration) {
+    val voiceId = voiceId ?: return
+    val bookTitle = bookTitle ?: return
+    val current = openState.value
+    if (current !is OpenState.Ready) return
+    val targetSentenceIndex = sentenceIndexForSeekPosition(current.sentences, position)
+    scope.launch {
+      epubPlaylistController.start(bookId, voiceId, bookTitle, activeChapterIndex, targetSentenceIndex)
+    }
+  }
+
   private suspend fun updateSentencesForChapter(chapterIndex: Int) {
     val current = openState.value
     if (current is OpenState.Ready) {
@@ -128,13 +140,17 @@ public class EpubReaderViewModel(
       is OpenState.Ready -> {
         val currentSentence = epubPlaylistController.currentSentenceFlow().collectAsState().value
         val playing = playStateManager.playStateFlow.collectAsState().value == PlayStateManager.PlayState.Playing
+        val activeSentenceIndex = currentSentence?.second ?: 0
+        val progress = chapterProgress(state.sentences, activeSentenceIndex)
         EpubReaderViewState.Content(
           bookTitle = state.bookTitle,
           sentences = state.sentences,
-          activeSentenceIndex = currentSentence?.second ?: 0,
+          activeSentenceIndex = activeSentenceIndex,
           failedSentenceIndices = emptySet(),
           isPlaying = playing,
           chapters = state.chapters,
+          chapterPosition = progress.position,
+          chapterDuration = progress.duration,
         )
       }
     }
