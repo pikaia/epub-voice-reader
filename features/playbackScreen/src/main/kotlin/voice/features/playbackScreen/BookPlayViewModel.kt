@@ -242,7 +242,7 @@ class BookPlayViewModel(
         }
       }
     }
-    player.playPause()
+    player.playPauseBook(bookId)
   }
 
   fun rewind() {

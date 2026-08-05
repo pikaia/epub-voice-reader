@@ -41,6 +41,16 @@ public class EpubPlaylistController(
 
   public fun currentSentenceFlow(): StateFlow<Pair<Int, Int>?> = currentSentence
 
+  // Pauses whatever session is currently loaded (book or non-book — a different EPUB included).
+  // Exposed separately from start() so callers can pause immediately on entering the reader
+  // screen, before any of the slower work (opening/parsing the book, synthesizing its first
+  // window) that start() itself does — otherwise a previously-playing session keeps audibly
+  // playing through all of that work, since start()'s own pauseCurrentSession() call doesn't run
+  // until the end of it.
+  public fun pauseCurrentSession() {
+    playbackControl.pauseCurrentSession()
+  }
+
   public suspend fun start(
     bookId: BookId,
     voiceId: String,
@@ -48,6 +58,7 @@ public class EpubPlaylistController(
     chapterIndex: Int,
     sentenceIndex: Int,
   ) {
+    playbackControl.pauseCurrentSession()
     this.bookId = bookId
     this.voiceId = voiceId
     this.bookTitle = bookTitle
@@ -68,6 +79,14 @@ public class EpubPlaylistController(
   }
 
   public suspend fun onCurrentMediaItemIndexChanged(index: Int) {
+    if (playbackControl.isCurrentSessionBook()) {
+      // A book has taken over the player since this EPUB was last active (e.g. the user opened a
+      // different audiobook). This index change belongs to that book's own queue, not this EPUB's
+      // window — stop listening, or reload() would misfire off the book's item indices and
+      // overwrite its queue with EPUB clips.
+      indexCollectionJob?.cancel()
+      return
+    }
     val entry = window.getOrNull(index) ?: return
     currentSentence.value = entry.chapterIndex to entry.sentenceIndex
     if (index >= window.size - RELOAD_MARGIN) {

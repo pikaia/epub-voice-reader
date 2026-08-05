@@ -18,6 +18,16 @@ public interface EpubPlaybackControl {
   public fun currentMediaItemIndexFlow(): Flow<Int>
 
   public fun togglePlayPause()
+
+  // Pauses whatever session (book or non-book) is currently loaded, without touching or
+  // resolving currentBookStoreId. Called before an EPUB starts synthesizing its opening window,
+  // so a previously-loaded session (e.g. a paused audiobook) can't still be sitting there —
+  // audible, in principle, to any stray resume — during the seconds synthesis can take.
+  public fun pauseCurrentSession()
+
+  // True if the player's current item belongs to a book (carries a MediaId), meaning some other
+  // session has taken over since this EPUB was last active.
+  public suspend fun isCurrentSessionBook(): Boolean
 }
 
 @Inject
@@ -38,4 +48,10 @@ public class RealEpubPlaybackControl(private val playerController: PlayerControl
   override fun togglePlayPause() {
     playerController.toggleEpubPlayPause()
   }
+
+  override fun pauseCurrentSession() {
+    playerController.pauseCurrentSession()
+  }
+
+  override suspend fun isCurrentSessionBook(): Boolean = playerController.isCurrentSessionBook()
 }

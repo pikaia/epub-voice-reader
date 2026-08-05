@@ -47,6 +47,7 @@ public class EpubReaderViewModel(
 
   init {
     scope.launch {
+      epubPlaylistController.pauseCurrentSession()
       when (val result = epubBookOpener.open(bookId)) {
         is EpubBookOpener.OpenResult.Ready -> {
           voiceId = result.voiceId

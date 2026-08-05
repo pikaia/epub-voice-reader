@@ -70,6 +70,15 @@ class PlayerController(
     }
   private val scope = CoroutineScope(Dispatchers.Main.immediate)
 
+  // Tracks the user's last explicit play/pause intent for the active non-book (EPUB) session,
+  // independent of the player's own ambient state. Necessary because a synthesis-window reload
+  // (see setEpubPlaylist) can outrun playback, leaving the player at STATE_ENDED/IDLE with its
+  // playWhenReady flag still stuck true — at that point controller.isPlaying and PlayStateManager
+  // both read "paused" even though nothing ever explicitly paused it, so neither can be trusted to
+  // tell "user paused" apart from "momentarily ran out of synthesized audio."
+  @Volatile
+  private var nonBookSessionShouldBePlaying = false
+
   fun setPosition(
     time: Long,
     id: ChapterId,
@@ -88,8 +97,32 @@ class PlayerController(
   fun pauseIfCurrentBookDifferentFrom(id: BookId) {
     scope.launch {
       val controller = awaitConnect() ?: return@launch
+      val currentItemIsBook = controller.currentMediaItem?.mediaId?.toMediaIdOrNull() != null
+      if (!currentItemIsBook && controller.mediaItemCount > 0) {
+        // A non-book (e.g. EPUB) session is active. It's always different from the audiobook
+        // being opened here, since currentBookId() below only recognizes book MediaIds and would
+        // otherwise read null and skip the pause entirely.
+        nonBookSessionShouldBePlaying = false
+        controller.pause()
+        return@launch
+      }
       val currentBookId = controller.currentBookId()
       if (currentBookId != null && currentBookId != id) {
+        controller.pause()
+      }
+    }
+  }
+
+  suspend fun isCurrentSessionBook(): Boolean {
+    val controller = awaitConnect() ?: return false
+    return controller.currentMediaItem?.mediaId?.toMediaIdOrNull() != null
+  }
+
+  fun pauseCurrentSession() {
+    scope.launch {
+      val controller = awaitConnect() ?: return@launch
+      if (controller.mediaItemCount > 0) {
+        nonBookSessionShouldBePlaying = false
         controller.pause()
       }
     }
@@ -127,10 +160,18 @@ class PlayerController(
         // A non-book session is already loaded (e.g. an active EPUB queue, whose items carry no
         // MediaId) — toggle it directly. Falling through to maybePrepare() would try to resolve
         // via the audiobook-only currentBookStoreId, which either does nothing (if it's unset)
-        // or replaces this queue with an unrelated book (if it's stale).
-        if (controller.isPlaying) {
+        // or replaces this queue with an unrelated book (if it's stale). This is the right call
+        // for ambiguous, book-agnostic callers (the library FAB, the home-screen widget) that
+        // don't know or care which book is active — but NOT for a caller that explicitly knows
+        // which book it wants; those must use playPauseBook() instead.
+        //
+        // Toggle against the tracked intent, not controller.isPlaying — see
+        // nonBookSessionShouldBePlaying's doc for why isPlaying alone isn't trustworthy here.
+        if (nonBookSessionShouldBePlaying) {
+          nonBookSessionShouldBePlaying = false
           controller.pause()
         } else {
+          nonBookSessionShouldBePlaying = true
           controller.play()
         }
         return@launch
@@ -145,15 +186,45 @@ class PlayerController(
     }
   }
 
+  // For callers that already know exactly which book they want playing (e.g. a book-scoped
+  // player screen). Unlike playPause(), this never defers to an already-loaded non-book (EPUB)
+  // session — it always ensures this specific book is loaded first, since the caller's intent is
+  // unambiguous here in a way the shared library FAB / widget's playPause() isn't.
+  fun playPauseBook(bookId: BookId) {
+    scope.launch {
+      val controller = awaitConnect() ?: return@launch
+      if (maybePrepareBook(controller, bookId)) {
+        if (controller.isPlaying) {
+          controller.pause()
+        } else {
+          controller.play()
+        }
+      }
+    }
+  }
+
   private suspend fun maybePrepare(controller: MediaController): Boolean {
     val bookId = currentBookStoreId.data.first() ?: return false
+    return maybePrepareBook(controller, bookId)
+  }
+
+  private suspend fun maybePrepareBook(
+    controller: MediaController,
+    bookId: BookId,
+  ): Boolean {
     if (controller.currentBookId() == bookId &&
       controller.playbackState in listOf(Player.STATE_READY, Player.STATE_BUFFERING)
     ) {
       return true
     }
     val book = bookRepository.get(bookId) ?: return false
-    controller.setMediaItem(mediaItemProvider.mediaItem(book))
+    // setMediaItems with an explicit startIndex (not setMediaItem(item), which implies an unset
+    // index) — a single item at an unset start index/position is indistinguishable, on the wire,
+    // from a passive/system-initiated resumption request, and LibrarySessionCallback intercepts
+    // that shape to protect an active EPUB session from being silently hijacked by one. This is
+    // OUR OWN deliberate, explicit request for a specific book, not an ambiguous passive one — it
+    // must always win, so it needs a shape that guard doesn't recognize as ambiguous.
+    controller.setMediaItems(listOf(mediaItemProvider.mediaItem(book)), 0, C.TIME_UNSET)
     controller.prepare()
     return true
   }
@@ -222,13 +293,26 @@ class PlayerController(
     scope.launch {
       val controller = awaitConnect() ?: return@launch
       // A background window reload (autoPlay=false) must not resume playback the user paused
-      // while the reload was in flight — only an explicit start (autoPlay=true) or a session that
-      // was already playing should end up playing after the new queue is set.
-      val shouldPlay = autoPlay || controller.isPlaying
+      // while the reload was in flight — and must not resume just because the window ran dry
+      // before the reload landed (controller.isPlaying reads false in that case too, since the
+      // player naturally reaches STATE_ENDED/IDLE, but playWhenReady is never cleared — so calling
+      // prepare() below would otherwise auto-resume regardless of what we do next). Only an
+      // explicit start (autoPlay=true) or a tracked "should be playing" intent should end up
+      // playing after the new queue is set — and it must be applied explicitly (pause() too, not
+      // just skipping play()), since a stale playWhenReady=true left over from the window running
+      // dry would otherwise resume playback on its own once prepare() completes.
+      val shouldPlay = if (autoPlay) {
+        nonBookSessionShouldBePlaying = true
+        true
+      } else {
+        nonBookSessionShouldBePlaying
+      }
       controller.setMediaItems(mediaItems, startIndex, startPositionMs)
       controller.prepare()
       if (shouldPlay) {
         controller.play()
+      } else {
+        controller.pause()
       }
     }
   }
@@ -263,9 +347,13 @@ class PlayerController(
   fun toggleEpubPlayPause() {
     scope.launch {
       val controller = awaitConnect() ?: return@launch
-      if (controller.isPlaying) {
+      // Toggle against the tracked intent, not controller.isPlaying — see
+      // nonBookSessionShouldBePlaying's doc for why isPlaying alone isn't trustworthy here.
+      if (nonBookSessionShouldBePlaying) {
+        nonBookSessionShouldBePlaying = false
         controller.pause()
       } else {
+        nonBookSessionShouldBePlaying = true
         controller.play()
       }
     }

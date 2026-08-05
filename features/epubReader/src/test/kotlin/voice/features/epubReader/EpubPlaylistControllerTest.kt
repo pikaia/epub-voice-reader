@@ -58,6 +58,9 @@ class EpubPlaylistControllerTest {
     assertEquals(expected = 5, actual = playbackControl.lastPlaylist?.size)
     assertEquals(expected = 0, actual = playbackControl.lastStartIndex)
     assertEquals(expected = true, actual = playbackControl.lastAutoPlay)
+    // Whatever was previously loaded (e.g. a paused audiobook) must be paused before this book's
+    // window starts synthesizing, so it can't still be audible during that window.
+    assertEquals(expected = 1, actual = playbackControl.pauseCurrentSessionCallCount)
   }
 
   @Test
@@ -108,6 +111,25 @@ class EpubPlaylistControllerTest {
     // flight, forcing autoPlay=true here would silently override that pause (the root cause of
     // the "random resume while paused" bug: reload() fired every ~50-70s regardless of pause state).
     assertEquals(expected = false, actual = playbackControl.lastAutoPlay)
+  }
+
+  @Test
+  fun `does not reload once a book has taken over the player`() = scope.runTest {
+    epubBookRepo.seed(chapterIndex = 0, sentenceCount = 30)
+    epubBookRepo.seed(chapterIndex = 1, sentenceCount = 10)
+    controller.start(bookId, voiceId, bookTitle, chapterIndex = 0, sentenceIndex = 0)
+    val setPlaylistCallsBefore = playbackControl.setPlaylistCallCount
+    // Simulates the player now showing an unrelated audiobook's queue instead of this EPUB's own
+    // clips (e.g. the user navigated away and started a different book).
+    playbackControl.currentSessionIsBook = true
+
+    // An index change belonging to that book's own queue, not this EPUB's window — must not be
+    // mistaken for this EPUB's window nearing its end (the root cause of a book's queue getting
+    // silently overwritten with EPUB clips by a stale, still-listening EPUB session).
+    playbackControl.currentIndex.value = 26
+    runCurrent()
+
+    assertEquals(expected = setPlaylistCallsBefore, actual = playbackControl.setPlaylistCallCount)
   }
 
   private class FakeEpubBookRepo : EpubBookRepo {
@@ -161,5 +183,15 @@ class EpubPlaylistControllerTest {
     override fun togglePlayPause() {
       togglePlayPauseCallCount++
     }
+
+    var pauseCurrentSessionCallCount = 0
+
+    override fun pauseCurrentSession() {
+      pauseCurrentSessionCallCount++
+    }
+
+    var currentSessionIsBook = false
+
+    override suspend fun isCurrentSessionBook(): Boolean = currentSessionIsBook
   }
 }

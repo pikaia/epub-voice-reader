@@ -36,6 +36,7 @@ import voice.core.sleeptimer.SleepTimer
 import voice.core.sleeptimer.SleepTimerMode
 import voice.core.sleeptimer.SleepTimerMode.TimedWithDuration
 import voice.core.sleeptimer.SleepTimerState
+import voice.features.playbackScreen.batteryOptimization.BatteryOptimization
 import voice.features.sleepTimer.SleepTimerViewState
 import java.time.Instant
 import kotlin.test.Test
@@ -326,6 +327,13 @@ class BookPlayViewModelTest {
     kioskMode: Boolean = false,
     livePlaybackFlow: MutableStateFlow<LivePlaybackState?> = MutableStateFlow(null),
     playStateFlow: MutableStateFlow<PlayStateManager.PlayState> = MutableStateFlow(PlayStateManager.PlayState.Paused),
+    player: PlayerController = mockk {
+      every { pauseIfCurrentBookDifferentFrom(book.id) } just Runs
+      every { livePlaybackStateFlow(book.id) } returns livePlaybackFlow
+    },
+    batteryOptimization: BatteryOptimization = mockk {
+      coEvery { shouldRequest() } returns false
+    },
   ): BookPlayViewModel {
     return BookPlayViewModel(
       bookRepository = mockk {
@@ -333,10 +341,7 @@ class BookPlayViewModelTest {
         every { flow(book.id) } returns MutableStateFlow(book)
       },
       currentBookResolver = currentBookResolver,
-      player = mockk {
-        every { pauseIfCurrentBookDifferentFrom(book.id) } just Runs
-        every { livePlaybackStateFlow(book.id) } returns livePlaybackFlow
-      },
+      player = player,
       sleepTimer = sleepTimer,
       playStateManager = mockk {
         every { this@mockk.playStateFlow } returns playStateFlow
@@ -346,13 +351,26 @@ class BookPlayViewModelTest {
       navigator = mockk(),
       bookmarkRepository = mockk(),
       volumeGainFormatter = mockk(),
-      batteryOptimization = mockk(),
+      batteryOptimization = batteryOptimization,
       sleepTimerPreferenceStore = sleepTimerDataStore,
       bookId = book.id,
       dispatcherProvider = DispatcherProvider(scope.coroutineContext, scope.coroutineContext, scope.coroutineContext),
       experimentalPlaybackPersistenceFeatureFlag = MemoryFeatureFlag(experimentalPlaybackPersistence),
       kioskModeFeatureFlag = MemoryFeatureFlag(kioskMode),
     )
+  }
+
+  @Test
+  fun `playPause always targets this screen's book, even if a non-book session is active`() = scope.runTest {
+    val player = mockk<PlayerController>(relaxed = true) {
+      every { pauseIfCurrentBookDifferentFrom(book.id) } just Runs
+    }
+    val viewModel = viewModel(player = player)
+
+    viewModel.playPause()
+
+    verify { player.playPauseBook(book.id) }
+    verify(exactly = 0) { player.playPause() }
   }
 }
 

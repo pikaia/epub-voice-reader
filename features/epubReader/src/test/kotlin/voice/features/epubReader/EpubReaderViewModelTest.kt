@@ -38,6 +38,7 @@ class EpubReaderViewModelTest {
     coEvery { start(any(), any(), any(), any(), any()) } just Runs
     every { currentSentenceFlow() } returns currentSentenceFlow
     every { togglePlayPause() } just Runs
+    every { pauseCurrentSession() } just Runs
   }
   private val epubBookRepo = mockk<EpubBookRepo> {
     coEvery { sentences(bookId, 0) } returns listOf(
@@ -132,6 +133,10 @@ class EpubReaderViewModelTest {
       assertEquals(expected = listOf("Hello.", "World."), actual = state.sentences)
       assertEquals(expected = listOf(EpubReaderViewState.ChapterEntry(0, "Chapter One")), actual = state.chapters)
     }
+    // Must pause whatever was previously playing (e.g. a different EPUB) immediately on opening
+    // this screen — before opening/parsing this book, not just inside start() at the end of that
+    // work — or the old session keeps audibly playing through the whole open() call.
+    verify { epubPlaylistController.pauseCurrentSession() }
   }
 
   @Test

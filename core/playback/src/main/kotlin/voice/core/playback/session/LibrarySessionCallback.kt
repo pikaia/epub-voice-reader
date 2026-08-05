@@ -149,7 +149,6 @@ class LibrarySessionCallback(
     controller: ControllerInfo,
     isForPlayback: Boolean,
   ): ListenableFuture<MediaItemsWithStartPosition> {
-    Logger.d("onPlaybackResumption")
     val activeNonBookQueue = currentNonBookQueueOrNull()
     if (activeNonBookQueue != null) {
       return Futures.immediateFuture(activeNonBookQueue)
