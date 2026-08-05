@@ -128,7 +128,7 @@ private fun EpubReaderContent(
       )
       LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.weight(1F),
         verticalArrangement = Arrangement.spacedBy(4.dp),
       ) {
         itemsIndexed(viewState.sentences) { index, sentence ->
