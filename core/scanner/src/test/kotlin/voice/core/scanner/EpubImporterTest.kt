@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
 import voice.core.data.Book
 import voice.core.data.BookContent
 import voice.core.data.BookId
@@ -34,6 +35,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 
 @RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class EpubImporterTest {
 
   @get:Rule
