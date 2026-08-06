@@ -45,9 +45,28 @@ public class EpubBookOpener(
       chapters = epubBookRepo.chapters(bookId)
       content = content.withBackfilledProgressFields(bookId, chapters)
       bookContentRepo.put(content)
-    } else if (content.epubChapterCount == 0 || content.epubTotalCharacterCount == 0) {
-      content = content.withBackfilledProgressFields(bookId, chapters)
-      bookContentRepo.put(content)
+    } else {
+      if (content.epubChapterCount == 0 || content.epubTotalCharacterCount == 0) {
+        content = content.withBackfilledProgressFields(bookId, chapters)
+        bookContentRepo.put(content)
+      }
+      if (content.cover == null) {
+        // A failed re-import here (e.g. the source file was moved or deleted since) must not
+        // block opening an already-readable book — the cover is a nice-to-have, not required
+        // for playback. Any Malformed/DrmProtected result is intentionally discarded; the
+        // re-read below simply reflects whatever is in the repo, unchanged if this didn't work.
+        //
+        // Known limitation (accepted, deferred): a book whose EPUB genuinely has no
+        // extractable cover anywhere (checked via all 3 detection conventions in
+        // core/epub) will retry this backfill on every future open() call, since there's
+        // no cheap way to distinguish "not yet attempted" from "attempted, found nothing"
+        // without new persisted state. This is low severity — wasted re-parse work on a
+        // deterministic, unchanged file, not data corruption — and is rare in practice
+        // since detection already checks 3 conventions before giving up.
+        val documentFile = cachedDocumentFileFactory.create(bookId.toUri())
+        val _ = epubImporter.import(bookId, documentFile)
+        content = bookContentRepo.get(bookId) ?: content
+      }
     }
 
     val voiceId = content.voiceId ?: run {

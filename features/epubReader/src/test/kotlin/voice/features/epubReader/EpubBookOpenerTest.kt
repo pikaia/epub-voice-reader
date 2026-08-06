@@ -3,7 +3,10 @@ package voice.features.epubReader
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.Runs
 import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -17,6 +20,7 @@ import voice.core.data.repo.EpubBookRepo
 import voice.core.documentfile.CachedDocumentFileFactory
 import voice.core.documentfile.FileBasedDocumentFile
 import voice.core.epub.DefaultEpubParser
+import voice.core.scanner.CoverSaver
 import voice.core.scanner.EpubImporter
 import voice.core.tts.AvailableVoice
 import voice.core.tts.InstallResult
@@ -55,10 +59,12 @@ class EpubBookOpenerTest {
       installResult
     }
   }
+  private val coverSaver = mockk<CoverSaver>()
   private val epubImporter = EpubImporter(
     context = context,
     epubParser = DefaultEpubParser(),
     epubBookRepo = epubBookRepo,
+    coverSaver = coverSaver,
   )
   private val cachedDocumentFileFactory = object : CachedDocumentFileFactory {
     override fun create(uri: android.net.Uri) = FileBasedDocumentFile(File(uri.path!!))
@@ -93,7 +99,7 @@ class EpubBookOpenerTest {
   fun `skips parsing when chapters already exist`() = runTest {
     val file = buildMinimalEpub(File(testFolder.newFolder(), "book.epub"))
     val bookId = BookId(file.toURI().toString())
-    bookContentRepo.put(bookContent(bookId, voiceId = "voice-a"))
+    bookContentRepo.put(bookContent(bookId, voiceId = "voice-a").copy(cover = File("/fake/existing-cover.png")))
     epubBookRepo.replaceChapters(
       bookId,
       chapters = listOf(EpubChapter(bookId = bookId, index = 0, title = "Already Parsed")),
@@ -200,7 +206,90 @@ class EpubBookOpenerTest {
     assertEquals(expected = null, actual = bookContentRepo.get(bookId)?.voiceId)
   }
 
-  private fun buildMinimalEpub(file: File): File {
+  @Test
+  fun `backfills a cover for a book whose chapters and progress fields are already imported`() = runTest {
+    coEvery { coverSaver.save(any(), any()) } just Runs
+    val file = buildMinimalEpub(File(testFolder.newFolder(), "book.epub"), includeCover = true)
+    val bookId = BookId(file.toURI().toString())
+    bookContentRepo.put(
+      bookContent(bookId, voiceId = "voice-a").copy(
+        epubChapterCount = 1,
+        epubLastChapterSentenceCount = 2,
+        epubTotalCharacterCount = 32,
+        cover = null,
+      ),
+    )
+    epubBookRepo.replaceChapters(
+      bookId,
+      chapters = listOf(EpubChapter(bookId = bookId, index = 0, title = "Already Parsed")),
+      sentences = listOf(
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 0, text = "Hello there."),
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 1, text = "This is chapter one."),
+      ),
+    )
+
+    val result = opener.open(bookId)
+
+    assertIs<EpubBookOpener.OpenResult.Ready>(result)
+    coVerify { coverSaver.save(bookId, any()) }
+  }
+
+  @Test
+  fun `does not re-import when a cover is already set`() = runTest {
+    val file = buildMinimalEpub(File(testFolder.newFolder(), "book.epub"))
+    val bookId = BookId(file.toURI().toString())
+    bookContentRepo.put(
+      bookContent(bookId, voiceId = "voice-a").copy(
+        epubChapterCount = 1,
+        epubLastChapterSentenceCount = 2,
+        epubTotalCharacterCount = 32,
+        cover = File("/fake/existing-cover.png"),
+      ),
+    )
+    epubBookRepo.replaceChapters(
+      bookId,
+      chapters = listOf(EpubChapter(bookId = bookId, index = 0, title = "Already Parsed")),
+      sentences = emptyList(),
+    )
+
+    val result = opener.open(bookId)
+
+    assertIs<EpubBookOpener.OpenResult.Ready>(result)
+    coVerify(exactly = 0) { coverSaver.save(any(), any()) }
+  }
+
+  @Test
+  fun `still opens successfully when the cover backfill re-import fails`() = runTest {
+    val file = File(testFolder.newFolder(), "book.epub")
+    file.writeBytes(byteArrayOf(1, 2, 3)) // not a valid epub — the backfill re-import will report Malformed
+    val bookId = BookId(file.toURI().toString())
+    bookContentRepo.put(
+      bookContent(bookId, voiceId = "voice-a").copy(
+        epubChapterCount = 1,
+        epubLastChapterSentenceCount = 2,
+        epubTotalCharacterCount = 32,
+        cover = null,
+      ),
+    )
+    epubBookRepo.replaceChapters(
+      bookId,
+      chapters = listOf(EpubChapter(bookId = bookId, index = 0, title = "Already Parsed")),
+      sentences = listOf(
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 0, text = "Hello there."),
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 1, text = "This is chapter one."),
+      ),
+    )
+
+    val result = opener.open(bookId)
+
+    assertIs<EpubBookOpener.OpenResult.Ready>(result)
+    assertEquals(expected = listOf("Already Parsed"), actual = epubBookRepo.chapters(bookId).map { it.title })
+  }
+
+  private fun buildMinimalEpub(
+    file: File,
+    includeCover: Boolean = false,
+  ): File {
     ZipOutputStream(file.outputStream()).use { zip ->
       fun entry(
         name: String,
@@ -208,6 +297,14 @@ class EpubBookOpenerTest {
       ) {
         zip.putNextEntry(ZipEntry(name))
         zip.write(content.toByteArray())
+        zip.closeEntry()
+      }
+      fun binaryEntry(
+        name: String,
+        content: ByteArray,
+      ) {
+        zip.putNextEntry(ZipEntry(name))
+        zip.write(content)
         zip.closeEntry()
       }
       entry("mimetype", "application/epub+zip")
@@ -222,6 +319,11 @@ class EpubBookOpenerTest {
         </container>
         """.trimIndent(),
       )
+      val coverManifestItem = if (includeCover) {
+        """<item id="cover-image" href="cover.png" media-type="image/png" properties="cover-image"/>"""
+      } else {
+        ""
+      }
       entry(
         "OEBPS/content.opf",
         """
@@ -230,6 +332,7 @@ class EpubBookOpenerTest {
           <metadata/>
           <manifest>
             <item id="chapter0" href="chapter0.xhtml" media-type="application/xhtml+xml"/>
+            $coverManifestItem
           </manifest>
           <spine>
             <itemref idref="chapter0"/>
@@ -247,8 +350,19 @@ class EpubBookOpenerTest {
         </html>
         """.trimIndent(),
       )
+      if (includeCover) {
+        binaryEntry("OEBPS/cover.png", tinyPngBytes())
+      }
     }
     return file
+  }
+
+  private fun tinyPngBytes(): ByteArray {
+    val bitmap = android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
+    bitmap.eraseColor(android.graphics.Color.RED)
+    val stream = java.io.ByteArrayOutputStream()
+    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+    return stream.toByteArray()
   }
 
   private fun bookContent(
