@@ -119,7 +119,7 @@ class DefaultEpubParser : EpubParser {
       if (id.isBlank() || href.isBlank()) continue
       val mediaType = item.getAttribute("media-type")
       val properties = item.getAttribute("properties")
-      val isCoverImage = properties.split(" ").any { it == "cover-image" }
+      val isCoverImage = properties.split(Regex("\\s+")).any { it == "cover-image" }
       result += ManifestItem(id = id, href = href, mediaType = mediaType, isCoverImage = isCoverImage)
     }
     return result
@@ -146,7 +146,7 @@ class DefaultEpubParser : EpubParser {
     manifestItems.firstOrNull { it.isCoverImage }?.let { return it.href }
     val coverMetaId = findCoverMetaContentId(document)
     if (coverMetaId != null) {
-      manifestItems.firstOrNull { it.id == coverMetaId }?.let { return it.href }
+      manifestItems.firstOrNull { it.id == coverMetaId && it.mediaType.startsWith("image/") }?.let { return it.href }
     }
     return manifestItems.firstOrNull { it.mediaType.startsWith("image/") }?.href
   }

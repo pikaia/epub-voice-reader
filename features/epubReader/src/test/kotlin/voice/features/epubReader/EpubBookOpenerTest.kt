@@ -288,6 +288,35 @@ class EpubBookOpenerTest {
     assertEquals(expected = listOf("Already Parsed"), actual = epubBookRepo.chapters(bookId).map { it.title })
   }
 
+  @Test
+  fun `recomputes progress fields after a cover backfill replaces the chapters`() = runTest {
+    val file = buildMinimalEpub(File(testFolder.newFolder(), "book.epub"), includeCover = true)
+    val bookId = BookId(file.toURI().toString())
+    coEvery { coverSaver.save(any(), any()) } just Runs
+    bookContentRepo.put(
+      bookContent(bookId, voiceId = "voice-a").copy(
+        epubChapterCount = 0,
+        epubLastChapterSentenceCount = 0,
+        epubTotalCharacterCount = 0,
+        cover = null,
+      ),
+    )
+    epubBookRepo.replaceChapters(
+      bookId,
+      chapters = listOf(EpubChapter(bookId = bookId, index = 0, title = "Stale Chapter")),
+      sentences = listOf(
+        EpubSentence(bookId = bookId, chapterIndex = 0, index = 0, text = "Short stale sentence."),
+      ),
+    )
+
+    val result = opener.open(bookId)
+
+    assertIs<EpubBookOpener.OpenResult.Ready>(result)
+    val expectedCharacterCount = epubBookRepo.sentences(bookId, 0).sumOf { it.text.length }
+    assertEquals(expected = expectedCharacterCount, actual = bookContentRepo.get(bookId)?.epubTotalCharacterCount)
+    assertEquals(expected = listOf("Chapter One"), actual = epubBookRepo.chapters(bookId).map { it.title })
+  }
+
   private fun buildMinimalEpub(
     file: File,
     includeCover: Boolean = false,

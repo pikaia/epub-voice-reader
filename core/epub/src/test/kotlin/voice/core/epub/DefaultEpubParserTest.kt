@@ -268,6 +268,23 @@ class DefaultEpubParserTest {
   }
 
   @Test
+  fun `falls through to the first image when the EPUB2 meta cover id points at a non-image manifest item`() {
+    val realCoverBytes = "real-cover-bytes".toByteArray()
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+      images = listOf(
+        TestManifestImage(id = "cover-image-item", href = "cover.png", mediaType = "image/png", content = realCoverBytes),
+      ),
+      coverMetaContentId = "chapter0",
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = true, actual = result.book.coverBytes?.contentEquals(realCoverBytes))
+  }
+
+  @Test
   fun `returns a null cover when the manifest has no images at all`() {
     val file = buildTestEpub(
       file = File(tempDir(), "book.epub"),

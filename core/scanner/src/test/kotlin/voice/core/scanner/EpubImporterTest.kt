@@ -120,6 +120,27 @@ class EpubImporterTest {
     assertNull(bookRepository.content[bookId]?.cover)
   }
 
+  @Test
+  fun savesADownsampledCoverWhenTheSourceImageExceedsThePreferredDimension() = runTest {
+    val largeBitmap = Bitmap.createBitmap(2400, 2400, Bitmap.Config.ARGB_8888)
+    largeBitmap.eraseColor(Color.BLUE)
+    val stream = ByteArrayOutputStream()
+    largeBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+    val file = buildMinimalEpub(
+      File(testFolder.newFolder(), "book.epub"),
+      includeCover = true,
+      coverBytes = stream.toByteArray(),
+    )
+    val bookId = BookId(file.toUri())
+    bookRepository.seed(bookId)
+
+    val result = importer.import(bookId, FileBasedDocumentFile(file))
+
+    assertIs<EpubParseResult.Success>(result)
+    val savedCover = bookRepository.content[bookId]?.cover
+    assertEquals(expected = true, actual = savedCover != null && savedCover.exists())
+  }
+
   private fun buildMinimalEpub(
     file: File,
     includeCover: Boolean = false,

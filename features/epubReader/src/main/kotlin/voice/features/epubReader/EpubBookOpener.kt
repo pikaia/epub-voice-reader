@@ -64,9 +64,13 @@ public class EpubBookOpener(
         // deterministic, unchanged file, not data corruption — and is rare in practice
         // since detection already checks 3 conventions before giving up.
         val documentFile = cachedDocumentFileFactory.create(bookId.toUri())
-        val _ = epubImporter.import(bookId, documentFile)
-        content = bookContentRepo.get(bookId) ?: content
+        val result = epubImporter.import(bookId, documentFile)
         chapters = epubBookRepo.chapters(bookId)
+        content = bookContentRepo.get(bookId) ?: content
+        if (result is EpubParseResult.Success) {
+          content = content.withBackfilledProgressFields(bookId, chapters)
+          bookContentRepo.put(content)
+        }
       }
     }
 
