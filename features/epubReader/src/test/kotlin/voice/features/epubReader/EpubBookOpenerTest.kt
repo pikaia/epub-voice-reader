@@ -124,6 +124,7 @@ class EpubBookOpenerTest {
         epubChapterCount = 5,
         epubLastChapterSentenceCount = 9,
         epubTotalCharacterCount = 42,
+        cover = File("/fake/existing-cover.png"),
       ),
     )
     epubBookRepo.replaceChapters(
@@ -149,6 +150,7 @@ class EpubBookOpenerTest {
         epubChapterCount = 1,
         epubLastChapterSentenceCount = 2,
         epubTotalCharacterCount = 0,
+        cover = File("/fake/existing-cover.png"),
       ),
     )
     epubBookRepo.replaceChapters(

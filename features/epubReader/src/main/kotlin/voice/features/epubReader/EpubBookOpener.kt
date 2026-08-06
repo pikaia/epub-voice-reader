@@ -66,6 +66,7 @@ public class EpubBookOpener(
         val documentFile = cachedDocumentFileFactory.create(bookId.toUri())
         val _ = epubImporter.import(bookId, documentFile)
         content = bookContentRepo.get(bookId) ?: content
+        chapters = epubBookRepo.chapters(bookId)
       }
     }
 
