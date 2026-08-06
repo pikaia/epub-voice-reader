@@ -171,4 +171,133 @@ class DefaultEpubParserTest {
       actual = result,
     )
   }
+
+  @Test
+  fun `extracts the cover declared via the EPUB3 cover-image property`() {
+    val coverBytes = "fake-cover-bytes-epub3".toByteArray()
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+      images = listOf(
+        TestManifestImage(
+          id = "cover-image",
+          href = "cover.jpg",
+          mediaType = "image/jpeg",
+          content = coverBytes,
+          coverImageProperty = true,
+        ),
+      ),
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = true, actual = result.book.coverBytes?.contentEquals(coverBytes))
+  }
+
+  @Test
+  fun `extracts the cover declared via the EPUB2 meta name cover convention`() {
+    val coverBytes = "fake-cover-bytes-epub2".toByteArray()
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+      images = listOf(
+        TestManifestImage(
+          id = "my-cover",
+          href = "cover.png",
+          mediaType = "image/png",
+          content = coverBytes,
+        ),
+      ),
+      coverMetaContentId = "my-cover",
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = true, actual = result.book.coverBytes?.contentEquals(coverBytes))
+  }
+
+  @Test
+  fun `falls back to the first manifest image when no cover convention is declared`() {
+    val coverBytes = "fake-cover-bytes-fallback".toByteArray()
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+      images = listOf(
+        TestManifestImage(id = "img-1", href = "first.png", mediaType = "image/png", content = coverBytes),
+        TestManifestImage(
+          id = "img-2",
+          href = "second.png",
+          mediaType = "image/png",
+          content = "second-image-bytes".toByteArray(),
+        ),
+      ),
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = true, actual = result.book.coverBytes?.contentEquals(coverBytes))
+  }
+
+  @Test
+  fun `prefers the EPUB3 cover-image property over the EPUB2 meta convention`() {
+    val propertyBytes = "cover-via-property".toByteArray()
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+      images = listOf(
+        TestManifestImage(
+          id = "property-cover",
+          href = "property.png",
+          mediaType = "image/png",
+          content = propertyBytes,
+          coverImageProperty = true,
+        ),
+        TestManifestImage(
+          id = "meta-cover",
+          href = "meta.png",
+          mediaType = "image/png",
+          content = "cover-via-meta".toByteArray(),
+        ),
+      ),
+      coverMetaContentId = "meta-cover",
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = true, actual = result.book.coverBytes?.contentEquals(propertyBytes))
+  }
+
+  @Test
+  fun `returns a null cover when the manifest has no images at all`() {
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = null, actual = result.book.coverBytes)
+  }
+
+  @Test
+  fun `treats an oversized cover entry as no cover instead of failing the parse`() {
+    val oversized = ByteArray(5 * 1024 * 1024 + 1)
+    val file = buildTestEpub(
+      file = File(tempDir(), "book.epub"),
+      chapters = listOf(TestEpubChapter(title = "Intro", bodyHtml = "<p>Hello.</p>")),
+      images = listOf(
+        TestManifestImage(
+          id = "cover-image",
+          href = "huge.jpg",
+          mediaType = "image/jpeg",
+          content = oversized,
+          coverImageProperty = true,
+        ),
+      ),
+    )
+
+    val result = parser.parse(file) as EpubParseResult.Success
+
+    assertEquals(expected = null, actual = result.book.coverBytes)
+  }
 }

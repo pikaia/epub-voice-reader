@@ -9,10 +9,20 @@ internal data class TestEpubChapter(
   val bodyHtml: String,
 )
 
+internal data class TestManifestImage(
+  val id: String,
+  val href: String,
+  val mediaType: String,
+  val content: ByteArray,
+  val coverImageProperty: Boolean = false,
+)
+
 internal fun buildTestEpub(
   file: File,
   chapters: List<TestEpubChapter>,
   encrypted: Boolean = false,
+  images: List<TestManifestImage> = emptyList(),
+  coverMetaContentId: String? = null,
 ): File {
   ZipOutputStream(file.outputStream()).use { zip ->
     fun writeEntry(
@@ -21,6 +31,14 @@ internal fun buildTestEpub(
     ) {
       zip.putNextEntry(ZipEntry(name))
       zip.write(content.toByteArray())
+      zip.closeEntry()
+    }
+    fun writeBinaryEntry(
+      name: String,
+      content: ByteArray,
+    ) {
+      zip.putNextEntry(ZipEntry(name))
+      zip.write(content)
       zip.closeEntry()
     }
 
@@ -43,20 +61,30 @@ internal fun buildTestEpub(
       )
     }
 
-    val manifestItems = chapters.indices.joinToString("\n          ") { index ->
+    val chapterManifestItems = chapters.indices.joinToString("\n          ") { index ->
       """<item id="chapter$index" href="chapter$index.xhtml" media-type="application/xhtml+xml"/>"""
+    }
+    val imageManifestItems = images.joinToString("") { image ->
+      val properties = if (image.coverImageProperty) " properties=\"cover-image\"" else ""
+      "\n          " +
+        """<item id="${image.id}" href="${image.href}" media-type="${image.mediaType}"$properties/>"""
     }
     val spineItems = chapters.indices.joinToString("\n          ") { index ->
       """<itemref idref="chapter$index"/>"""
+    }
+    val metadata = if (coverMetaContentId != null) {
+      """<meta name="cover" content="$coverMetaContentId"/>"""
+    } else {
+      ""
     }
     writeEntry(
       "OEBPS/content.opf",
       """
       <?xml version="1.0" encoding="UTF-8"?>
       <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
-        <metadata/>
+        <metadata>$metadata</metadata>
         <manifest>
-          $manifestItems
+          $chapterManifestItems$imageManifestItems
         </manifest>
         <spine>
           $spineItems
@@ -77,6 +105,10 @@ internal fun buildTestEpub(
         </html>
         """.trimIndent(),
       )
+    }
+
+    images.forEach { image ->
+      writeBinaryEntry("OEBPS/${image.href}", image.content)
     }
   }
   return file

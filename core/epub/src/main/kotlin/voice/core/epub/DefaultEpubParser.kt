@@ -17,8 +17,18 @@ private val SENTENCE_LOCALE: Locale = Locale.US
 // 20 MB per entry (a single EPUB chapter or OPF/container file)
 private const val MAX_ENTRY_SIZE_BYTES = 20 * 1024 * 1024L
 
+// 5 MB per cover image entry — generous for a cover, well under the text-entry cap above.
+private const val MAX_COVER_SIZE_BYTES = 5 * 1024 * 1024L
+
 @ContributesBinding(AppScope::class)
 class DefaultEpubParser : EpubParser {
+
+  private data class ManifestItem(
+    val id: String,
+    val href: String,
+    val mediaType: String,
+    val isCoverImage: Boolean,
+  )
 
   override fun parse(file: File): EpubParseResult {
     return try {
@@ -40,16 +50,27 @@ class DefaultEpubParser : EpubParser {
     val opfXml = zip.readEntryOrNull(opfPath)
       ?: return EpubParseResult.Malformed("missing OPF file at $opfPath")
     val opfDir = opfPath.substringBeforeLast('/', missingDelimiterValue = "")
-    val spineHrefs = parseSpineHrefs(opfXml)
+    val opfDocument = parseXml(opfXml)
+      ?: return EpubParseResult.Malformed("could not parse OPF at $opfPath")
+
+    val manifestItems = parseManifestItems(opfDocument)
+    val manifest = manifestItems.associate { it.id to it.href }
+    val spineHrefs = parseSpineHrefs(opfDocument, manifest)
       ?: return EpubParseResult.Malformed("could not resolve manifest/spine")
 
+    fun resolvePath(href: String) = if (opfDir.isEmpty()) href else "$opfDir/$href"
+
     val chapters = spineHrefs.mapIndexed { index, href ->
-      val path = if (opfDir.isEmpty()) href else "$opfDir/$href"
+      val path = resolvePath(href)
       val html = zip.readEntryOrNull(path)
         ?: return EpubParseResult.Malformed("missing chapter file at $path")
       parseChapter(html, fallbackTitle = "Chapter ${index + 1}")
     }
-    return EpubParseResult.Success(ParsedBook(chapters))
+
+    val coverHref = findCoverHref(opfDocument, manifestItems)
+    val coverBytes = coverHref?.let { href -> zip.readEntryBytesOrNull(resolvePath(href)) }
+
+    return EpubParseResult.Success(ParsedBook(chapters, coverBytes))
   }
 
   private fun parseChapter(
@@ -88,20 +109,26 @@ class DefaultEpubParser : EpubParser {
     return element.getAttribute("full-path").ifBlank { null }
   }
 
-  private fun parseSpineHrefs(opfXml: String): List<String>? {
-    val document = parseXml(opfXml) ?: return null
-
-    val manifest = mutableMapOf<String, String>()
+  private fun parseManifestItems(document: Document): List<ManifestItem> {
     val items = document.getElementsByTagName("item")
+    val result = mutableListOf<ManifestItem>()
     for (i in 0 until items.length) {
       val item = items.item(i) as? Element ?: continue
       val id = item.getAttribute("id")
       val href = item.getAttribute("href")
-      if (id.isNotBlank() && href.isNotBlank()) {
-        manifest[id] = href
-      }
+      if (id.isBlank() || href.isBlank()) continue
+      val mediaType = item.getAttribute("media-type")
+      val properties = item.getAttribute("properties")
+      val isCoverImage = properties.split(" ").any { it == "cover-image" }
+      result += ManifestItem(id = id, href = href, mediaType = mediaType, isCoverImage = isCoverImage)
     }
+    return result
+  }
 
+  private fun parseSpineHrefs(
+    document: Document,
+    manifest: Map<String, String>,
+  ): List<String>? {
     val spine = mutableListOf<String>()
     val itemRefs = document.getElementsByTagName("itemref")
     for (i in 0 until itemRefs.length) {
@@ -110,6 +137,29 @@ class DefaultEpubParser : EpubParser {
       spine += href
     }
     return spine.ifEmpty { null }
+  }
+
+  private fun findCoverHref(
+    document: Document,
+    manifestItems: List<ManifestItem>,
+  ): String? {
+    manifestItems.firstOrNull { it.isCoverImage }?.let { return it.href }
+    val coverMetaId = findCoverMetaContentId(document)
+    if (coverMetaId != null) {
+      manifestItems.firstOrNull { it.id == coverMetaId }?.let { return it.href }
+    }
+    return manifestItems.firstOrNull { it.mediaType.startsWith("image/") }?.href
+  }
+
+  private fun findCoverMetaContentId(document: Document): String? {
+    val metas = document.getElementsByTagName("meta")
+    for (i in 0 until metas.length) {
+      val meta = metas.item(i) as? Element ?: continue
+      if (meta.getAttribute("name") == "cover") {
+        return meta.getAttribute("content").ifBlank { null }
+      }
+    }
+    return null
   }
 
   private fun parseXml(xml: String): Document? {
@@ -149,5 +199,11 @@ class DefaultEpubParser : EpubParser {
     val entry = getEntry(path) ?: return null
     if (entry.size < 0 || entry.size > MAX_ENTRY_SIZE_BYTES) return null
     return getInputStream(entry).bufferedReader().use { it.readText() }
+  }
+
+  private fun ZipFile.readEntryBytesOrNull(path: String): ByteArray? {
+    val entry = getEntry(path) ?: return null
+    if (entry.size < 0 || entry.size > MAX_COVER_SIZE_BYTES) return null
+    return getInputStream(entry).use { it.readBytes() }
   }
 }
